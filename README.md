@@ -10,7 +10,7 @@ Node.js 24 kullanın. `npm ci`, ardından `npm test` ve `npm run build` çalış
 
 ## Kendi sunucu hesabını bağlama
 
-`wrangler login` ile kendi Cloudflare hesabınıza girin. `wrangler d1 create album` ve `wrangler r2 bucket create album-private` ile kaynakları oluşturup dönen D1 kimliğini `wrangler.album.jsonc` içine yazın. R2 aboneliği ve varsa ücret koşulları hesap sahibince etkinleştirilmelidir; dağıtım betiği abonelik açmaz.
+`wrangler login` ile kendi Cloudflare hesabınıza girin. Yapılandırma hesap sahibinin mevcut özel `album` kovasını kullanır; kovayı yeniden oluşturmayın. D1 kaynağı yoksa `wrangler d1 create album` ile oluşturup dönen kimliği `wrangler.album.jsonc` içine yazın. R2 aboneliği ve varsa ücret koşulları hesap sahibince etkinleştirilmelidir; dağıtım betiği abonelik açmaz.
 
 Veritabanını `wrangler d1 migrations apply album --remote --config wrangler.album.jsonc` ile hazırlayın. `ALBUM_UMUT_HASH` ve `ALBUM_SUDE_HASH` değerlerini `wrangler secret put` ile girin; biçim `salt:scryptHex`, scrypt N=32768, r=8, p=3, çıktı 64 bayttır. Parolaları veya hashlerini depoya koymayın. `npm run deploy:api` ile sunucuyu dağıtın.
 
