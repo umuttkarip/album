@@ -25,6 +25,10 @@ jobs:
         env:
           ALBUM_API_BASE: ${{ vars.ALBUM_API_BASE }}
           ALBUM_PUBLIC_BASE: /album/
+      - name: Verify private API
+        run: node independent/probe-api.mjs
+        env:
+          ALBUM_API_BASE: ${{ vars.ALBUM_API_BASE }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
