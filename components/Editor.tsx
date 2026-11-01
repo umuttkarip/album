@@ -1,0 +1,149 @@
+'use client';
+import { PrivateImage } from './PrivateImage';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Stage, Layer, Group, Rect, Image as KImage, Text as KText, Line, Transformer } from 'react-konva';
+import Konva from 'konva';
+import { ArrowLeft, Plus, ImagePlus, LayoutTemplate, Type, Pencil, Eraser, Sticker, MousePointer2, Undo2, Redo2, CloudCheck, CloudOff, LoaderCircle, ChevronLeft, ChevronRight, Layers, Upload, X, Check, Copy, Trash2, Maximize2, Minus, ZoomIn, LockKeyhole } from 'lucide-react';
+import { papers, templates, blankDoc, newElement, applyTemplate, photoBox, assetUrl, captionText, type Album, type Spread, type Asset, type User, type PageDoc, type PageElement } from '../lib/model';
+import { request, post, draftKey, localDraft, uploadJobs, type UploadJob } from '../lib/client';
+import { imageFor, elementSrc } from '../lib/render';
+import { stickers } from '../lib/stickers';
+
+function CanvasItem({element:e, select, change, editable, selected, tool, guides, pageWidth, dark}:{element:PageElement;select:()=>void;change:(p:Partial<PageElement>)=>void;editable:boolean;selected:boolean;tool:string;guides:(v:{x?:number;y?:number})=>void;pageWidth:number;dark:boolean}) {
+  const [img,setImg]=useState<HTMLImageElement|null>(null);
+  useEffect(()=>{let alive=true;if(e.type==='photo'||e.type==='sticker')imageFor(elementSrc(e)).then(i=>{if(alive)setImg(i);}).catch(()=>{});return()=>{alive=false;};},[e.assetId,e.stickerId,e.type]);
+  const props={id:e.id,x:e.x,y:e.y,width:e.w,height:e.h,rotation:e.rotation,opacity:e.opacity,draggable:editable&&tool==='select',onClick:select,onTap:select,onDragStart:select,onDragMove:(v:any)=>{if(Math.abs(e.rotation)>3)return;const n=v.target,tolerance=7/Math.max(.1,n.getAbsoluteScale().x);const snap=(start:number,size:number,targets:number[])=>{let delta=tolerance,position=start,guide:number|undefined;for(const target of targets)for(const anchor of [0,size/2,size]){const d=target-start-anchor;if(Math.abs(d)<Math.abs(delta)){delta=d;position=start+d;guide=target;}}return {position,guide};};const x=snap(n.x(),e.w,pageWidth===1000?[0,75,500,925,1000]:[0,75,500,925,1000,1075,1500,1925,2000]),y=snap(n.y(),e.h,[0,75,625,1175,1250]);n.position({x:x.position,y:y.position});guides({x:x.guide,y:y.guide});},onDragEnd:(v:any)=>{const n=v.target;guides({});change({x:n.x(),y:n.y()});},onTransformEnd:(v:any)=>{const n=v.target,w=Math.max(30,e.w*n.scaleX()),h=Math.max(30,e.h*n.scaleY());n.scaleX(1);n.scaleY(1);change({x:n.x(),y:n.y(),w,h,rotation:n.rotation()});}};
+  if(e.type==='text')return <KText {...props} text={e.text||''} fontFamily={e.font||'Commissioner'} fontSize={e.size||36} fill={e.color||'#343b35'} align={e.align||'left'} lineHeight={1.35} />;
+  const box=img?photoBox(e,img.naturalWidth,img.naturalHeight):{x:0,y:0,w:e.w,h:e.h};
+  return <Group {...props}>
+    {e.frame&&<Rect x={Math.max(0,box.x)-14} y={Math.max(0,box.y)-14} width={Math.min(e.w,box.x+box.w)-Math.max(0,box.x)+28} height={Math.min(e.h,box.y+box.h)-Math.max(0,box.y)+38} fill="#f9f7ef" shadowColor="#17221f" shadowOpacity={.16} shadowBlur={10} shadowOffsetY={6} listening={false}/>}
+    <Group clipX={0} clipY={0} clipWidth={e.w} clipHeight={e.h}>
+      {img?<KImage image={img} x={box.x} y={box.y} width={box.w} height={box.h}/>:<Rect width={e.w} height={e.h} fill="#c8cec3"/>}
+    </Group>
+    <Rect width={e.w} height={e.h} fill="rgba(0,0,0,0.001)"/>
+    {!!captionText(e)&&<KText text={captionText(e)} x={0} y={Math.min(e.h,box.y+box.h)+28} width={e.w} fontFamily="Literata" fontSize={26} lineHeight={1.38} fill={dark?'#dae0d5':'#65715b'}/>}
+  </Group>;
+}
+
+export default function Editor({album,spreads:initialSpreads,assets:initialAssets,user,initialId,onBack,onRefresh}:{album:Album;spreads:Spread[];assets:Asset[];user:User;initialId:string;onBack:()=>void;onRefresh:()=>Promise<void>}) {
+  const [spreads,setSpreads]=useState(initialSpreads),[assets,setAssets]=useState(initialAssets),[spreadId,setSpreadId]=useState(initialId),[doc,setDoc]=useState<PageDoc>(initialSpreads.find(s=>s.id===initialId)!.doc);
+  const [tool,setTool]=useState('select'),[panel,setPanel]=useState('photos'),[selected,setSelected]=useState<string|null>(null),[status,setStatus]=useState('loading'),[error,setError]=useState(''),[readOnly,setReadOnly]=useState(true);
+  const [revision,setRevision]=useState(0),[restore,setRestore]=useState<any>(null),[preview,setPreview]=useState<PageDoc|null>(null),[chosen,setChosen]=useState<string[]>([]),[historyTick,setHistoryTick]=useState(0);
+  const [brushColor,setBrushColor]=useState('#485549'),[brushSize,setBrushSize]=useState(8),[draftStroke,setDraftStroke]=useState<number[]|null>(null),[jobs,setJobs]=useState<UploadJob[]>([]),[uploadOpen,setUploadOpen]=useState(false),[uploadKind,setUploadKind]=useState<'photo'|'sticker'>('photo');
+  const [viewport,setViewport]=useState({w:800,h:600}),[zoom,setZoom]=useState(1),[pan,setPan]=useState({x:0,y:0});
+  const [guidelines,setGuidelines]=useState<{x?:number;y?:number}>({});
+  const stageRef=useRef<Konva.Stage>(null),groupRef=useRef<Konva.Group>(null),transformRef=useRef<Konva.Transformer>(null),hostRef=useRef<HTMLDivElement>(null),inputRef=useRef<HTMLInputElement>(null);
+  const docRef=useRef(doc),revisionRef=useRef(0),tokenRef=useRef(''),dirtyRef=useRef(false),saveRef=useRef<Promise<void>|null>(null),activeRef=useRef(''),readonlyRef=useRef(true),strokeRef=useRef<number[]|null>(null),touchRef=useRef<{d:number;x:number;y:number}|null>(null);
+  const history=useRef<{past:PageDoc[];future:PageDoc[];group:string;time:number}>({past:[],future:[],group:'',time:0});
+  const current=spreads.find(s=>s.id===spreadId)!,width=doc.cover?1000:2000,fit=Math.min((viewport.w-48)/width,(viewport.h-48)/1250),scale=fit*zoom,offset={x:(viewport.w-width*scale)/2+pan.x,y:(viewport.h-1250*scale)/2+pan.y};
+  const displayed=preview||doc,selectedElement=doc.elements.find(e=>e.id===selected),disabled=readOnly||!!preview;
+
+  const commit=useCallback((next:PageDoc,group='')=>{
+    if(readonlyRef.current)return;const h=history.current,now=Date.now();
+    if(!group||group!==h.group||now-h.time>900){h.past.push(docRef.current);if(h.past.length>50)h.past.shift();}h.group=group;h.time=now;h.future=[];
+    docRef.current=next;dirtyRef.current=true;setDoc(next);setStatus('dirty');setHistoryTick(n=>n+1);localDraft(draftKey(user.id,activeRef.current),{doc:next,revision:revisionRef.current,time:now});
+  },[user.id]);
+  const change=(id:string,patch:Partial<PageElement>,group='')=>commit({...docRef.current,elements:docRef.current.elements.map(e=>e.id===id?{...e,...patch}:e)},group);
+  const save=useCallback(async()=>{
+    if(saveRef.current)await saveRef.current;
+    if(!dirtyRef.current||readonlyRef.current||!activeRef.current)return;
+    const id=activeRef.current,d=docRef.current,rev=revisionRef.current,token=tokenRef.current;setStatus('saving');
+    const work=(async()=>{try {
+      const r=await request(`spreads/${id}`,{method:'PUT',body:JSON.stringify({doc:d,revision:rev,token})});
+      if(activeRef.current!==id)return;revisionRef.current=r.revision;setRevision(r.revision);
+      if(docRef.current===d){dirtyRef.current=false;setStatus('saved');try{localStorage.removeItem(draftKey(user.id,id));}catch{}}
+      else{setStatus('dirty');localDraft(draftKey(user.id,id),{doc:docRef.current,revision:r.revision,time:Date.now()});}
+    }catch(e){setStatus('error');setError((e as Error).message);if((e as any).status===409){setReadOnly(true);readonlyRef.current=true;}}})();
+    saveRef.current=work;await work;saveRef.current=null;
+  },[user.id]);
+  useEffect(()=>{docRef.current=doc;},[doc]);
+  useEffect(()=>{if(status!=='dirty')return;const t=setTimeout(()=>void save(),1000);return()=>clearTimeout(t);},[doc,status,save]);
+  useEffect(()=>{
+    let alive=true;setReadOnly(true);readonlyRef.current=true;setStatus('loading');setError('');setSelected(null);setPreview(null);setZoom(1);setPan({x:0,y:0});setRestore(null);dirtyRef.current=false;history.current={past:[],future:[],group:'',time:0};activeRef.current=spreadId;
+    let token='';try{token=sessionStorage.getItem('album:lock:'+spreadId)||'';}catch{}
+    void (async()=>{try{
+      const fresh=await request(`spreads/${spreadId}`);if(!alive)return;setDoc(fresh.spread.doc);docRef.current=fresh.spread.doc;revisionRef.current=fresh.spread.revision;setRevision(fresh.spread.revision);
+      const lock=await post(`spreads/${spreadId}/lock`,{token:token||undefined});token=lock.token;
+      if(!alive){void post(`spreads/${spreadId}/unlock`,{token});return;}
+      tokenRef.current=token;try{sessionStorage.setItem('album:lock:'+spreadId,token);}catch{}setReadOnly(false);readonlyRef.current=false;setStatus('saved');setRestore(localDraft(draftKey(user.id,spreadId)));
+    }catch(e){if(alive){setError((e as Error).message);setStatus('locked');}}})();
+    const renew=setInterval(()=>{if(!alive||readonlyRef.current||!token)return;void post(`spreads/${spreadId}/lock`,{token}).catch(e=>{if(alive){setReadOnly(true);readonlyRef.current=true;setStatus('locked');setError(e.message);}});},20000);
+    return()=>{alive=false;clearInterval(renew);const pending=saveRef.current;void Promise.resolve(pending).finally(()=>{if(token)void post(`spreads/${spreadId}/unlock`,{token}).catch(()=>{});});};
+  },[spreadId,user.id]);
+  useEffect(()=>{const r=hostRef.current;if(!r)return;const observer=new ResizeObserver(([v])=>setViewport({w:v.contentRect.width,h:v.contentRect.height}));observer.observe(r);return()=>observer.disconnect();},[]);
+  useEffect(()=>{const tr=transformRef.current,stage=stageRef.current;if(!tr||!stage)return;const n=selected?stage.findOne('#'+selected):null;tr.nodes(n&&!disabled&&tool==='select'?[n]:[]);tr.getLayer()?.batchDraw();},[selected,doc,tool,disabled]);
+  const undo=useCallback((redo=false)=>{if(readonlyRef.current)return;const h=history.current,from=redo?h.future:h.past,to=redo?h.past:h.future,next=from.pop();if(!next)return;to.push(docRef.current);h.group='';docRef.current=next;setDoc(next);dirtyRef.current=true;setStatus('dirty');setHistoryTick(n=>n+1);localDraft(draftKey(user.id,activeRef.current),{doc:next,revision:revisionRef.current,time:Date.now()});},[user.id]);
+  useEffect(()=>{const key=(e:KeyboardEvent)=>{if((e.target as HTMLElement)?.matches('input,textarea'))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo(e.shiftKey);}if(e.key==='Escape'){setSelected(null);setPreview(null);setTool('select');}};window.addEventListener('keydown',key);const leave=(e:BeforeUnloadEvent)=>{if(dirtyRef.current){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',leave);return()=>{window.removeEventListener('keydown',key);window.removeEventListener('beforeunload',leave);};},[undo]);
+  async function navigate(id:string){await save();setSpreadId(id);}
+  async function leave(){await save();await onRefresh();onBack();}
+  async function addSpread(){await save();try{const r=await post(`albums/${album.id}/spreads`,{});setSpreads(s=>[...s,r.spread]);setSpreadId(r.spread.id);}catch(e){setError((e as Error).message);}}
+  const add=(e:PageElement)=>{commit({...docRef.current,elements:[...docRef.current.elements,e]});setSelected(e.id);setTool('select');};
+  const addPhoto=(a:Asset)=>add(newElement(a.kind==='sticker'?'sticker':'photo',{assetId:a.id,x:doc.cover?100:110,y:180,w:doc.cover?800:780,h:Math.min(900,780*a.height/a.width),fit:'contain',frame:a.kind==='photo'}));
+  const removeSelected=()=>{commit({...docRef.current,elements:docRef.current.elements.filter(e=>e.id!==selected)});setSelected(null);};
+  const moveLayer=(delta:number)=>{const es=[...docRef.current.elements],i=es.findIndex(e=>e.id===selected),j=Math.max(0,Math.min(es.length-1,i+delta));if(i<0)return;const [item]=es.splice(i,1);es.splice(j,0,item);commit({...docRef.current,elements:es});};
+  const position=()=>groupRef.current?.getRelativePointerPosition();
+  function startDraw(e:any){
+    if(disabled)return;if(e.evt.touches?.length>1)return;
+    if(tool==='pen'||tool==='eraser'){const p=position();if(!p||p.x<0||p.x>width||p.y<0||p.y>1250)return;e.evt.preventDefault();strokeRef.current=[p.x,p.y];setDraftStroke([...strokeRef.current]);setSelected(null);}
+    else if(e.target===e.target.getStage()||e.target.name()==='paper')setSelected(null);
+  }
+  function moveDraw(e:any){
+    const touches=e.evt.touches;
+    if(touches?.length===2){e.evt.preventDefault();strokeRef.current=null;setDraftStroke(null);stageRef.current?.findOne('.draggable')?.stopDrag();const r=hostRef.current!.getBoundingClientRect(),a=touches[0],b=touches[1],d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),x=(a.clientX+b.clientX)/2-r.left,y=(a.clientY+b.clientY)/2-r.top;
+      if(touchRef.current){const old=touchRef.current,ratio=d/old.d;setZoom(z=>Math.min(4,Math.max(.6,z*ratio)));setPan(p=>({x:p.x+x-old.x,y:p.y+y-old.y}));}touchRef.current={d,x,y};return;}
+    if(!strokeRef.current)return;const p=position();if(!p)return;e.evt.preventDefault();const points=strokeRef.current,dx=p.x-points[points.length-2],dy=p.y-points[points.length-1];if(dx*dx+dy*dy<4)return;points.push(Math.max(0,Math.min(width,p.x)),Math.max(0,Math.min(1250,p.y)));setDraftStroke([...points]);
+  }
+  function finishDraw(){touchRef.current=null;const pts=strokeRef.current;strokeRef.current=null;setDraftStroke(null);if(!pts||pts.length<4)return;
+    const xs=pts.filter((_,i)=>i%2===0),ys=pts.filter((_,i)=>i%2===1),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(1,Math.max(...xs)-x),h=Math.max(1,Math.max(...ys)-y);
+    const points=pts.map((v,i)=>(v-(i%2?y:x))/(i%2?h:w));add(newElement('stroke',{x,y,w,h,points,color:brushColor,size:tool==='eraser'?brushSize*4:brushSize,eraser:tool==='eraser'}));setTool(tool);
+  }
+  const chooseTool=(value:string)=>{setTool(['pen','eraser','select'].includes(value)?value:'select');setPanel(value);if(value==='text'&&!disabled){add(newElement('text',{x:120,y:200,w:700,h:180,text:'Notunu yaz',size:42,font:'Literata',color:doc.paper==='charcoal'?'#edf0e8':'#3f4b40'}));setPanel('properties');}};
+  async function filesPicked(files:FileList|null){if(!files?.length)return;const next:UploadJob[]=Array.from(files).map(file=>({file,progress:0,state:'waiting' as const}));setJobs(next);setUploadOpen(true);await uploadJobs(album.id,next,uploadKind,()=>setJobs([...next]));try{const r=await request(`albums/${album.id}`);setAssets(r.assets);setChosen(next.filter(j=>j.state==='done').map(j=>j.id!));}catch(e){setError((e as Error).message);}}
+  const title=current.doc.cover?'Kapak':`Sayfa ${current.position*2+1}–${current.position*2+2}`;
+  return <div className="editor-screen">
+    <header className="editor-header"><button className="icon-button" onClick={()=>void leave()} aria-label="Albüme dön"><ArrowLeft/></button><div className="editor-title"><strong>{album.title}</strong><span>{title}</span></div><div className={'save-status '+status} aria-live="polite">{status==='saving'||status==='loading'?<LoaderCircle className="spin"/>:status==='saved'?<CloudCheck/>:status==='locked'?<LockKeyhole/>:<CloudOff/>}<span>{status==='saved'?'Kaydedildi':status==='saving'?'Kaydediliyor':status==='dirty'?'Kaydedilecek':status==='loading'?'Açılıyor':status==='locked'?'Görüntüleme':'Taslak cihazında'}</span></div><button className="button primary compact" onClick={()=>void leave()}>Bitti<Check size={16}/></button></header>
+    {error&&<div className="notice error">{error}<button onClick={()=>{setError('');if(status==='error')void save();}}>Yeniden dene</button></div>}
+    {restore&&!readOnly&&<div className="notice">Bu cihazda kaydedilmemiş bir taslak var.<button onClick={()=>{commit(restore.doc);setRestore(null);}}>Taslağı aç</button><button onClick={()=>setRestore(null)} aria-label="Bildirimi kapat"><X size={16}/></button></div>}
+    <div className="editor-workspace">
+      <main className={'canvas-workspace '+(tool==='pen'||tool==='eraser'?'drawing':'')} ref={hostRef}>
+        <Stage ref={stageRef} width={Math.max(1,viewport.w)} height={Math.max(1,viewport.h)} onMouseDown={startDraw} onTouchStart={startDraw} onMouseMove={moveDraw} onTouchMove={moveDraw} onMouseUp={finishDraw} onTouchEnd={finishDraw}>
+          <Layer><Group ref={groupRef} x={offset.x} y={offset.y} scaleX={scale} scaleY={scale}>
+            <Rect name="paper" width={width} height={1250} fill={papers[displayed.paper]} shadowColor="#090f1d" shadowOpacity={.3} shadowBlur={40}/>
+            {displayed.elements.filter(e=>e.type!=='stroke').map(e=><CanvasItem key={e.id} element={e} guides={setGuidelines} pageWidth={width} dark={doc.paper==="charcoal"} selected={selected===e.id} tool={tool} editable={!disabled} select={()=>{if(tool==='select'){setSelected(e.id);setPanel('properties');}}} change={p=>change(e.id,p)}/>)}
+            {!doc.cover&&<Line points={[1000,0,1000,1250]} stroke={doc.paper==='charcoal'?'#ffffff15':'#1c2a2618'} strokeWidth={2} listening={false}/>}
+            {guidelines.x!==undefined&&<Line points={[guidelines.x,0,guidelines.x,1250]} stroke="#809a71" strokeWidth={1.5/scale} dash={[6/scale,4/scale]} listening={false}/>}{guidelines.y!==undefined&&<Line points={[0,guidelines.y,width,guidelines.y]} stroke="#809a71" strokeWidth={1.5/scale} dash={[6/scale,4/scale]} listening={false}/>}<Transformer ref={transformRef} keepRatio enabledAnchors={['top-left','top-right','bottom-left','bottom-right']} rotateAnchorOffset={48/Math.max(.2,scale)} anchorSize={10/Math.max(.2,scale)} borderStroke="#708c6e" anchorStroke="#708c6e" anchorFill="#f4f2e9" boundBoxFunc={(old,next)=>Math.abs(next.width)<30||Math.abs(next.height)<30?old:next}/>
+          </Group></Layer>
+          <Layer listening={!disabled&&tool==="select"}><Group x={offset.x} y={offset.y} scaleX={scale} scaleY={scale} clipX={0} clipY={0} clipWidth={width} clipHeight={1250}>
+            {displayed.elements.filter(e=>e.type==='stroke').map(e=><Line key={e.id} id={e.id} x={e.x} y={e.y} rotation={e.rotation} listening={!e.eraser} draggable={!disabled&&tool==='select'} onClick={()=>{setSelected(e.id);setPanel('properties');}} onTap={()=>{setSelected(e.id);setPanel('properties');}} onDragEnd={event=>change(e.id,{x:event.target.x(),y:event.target.y()})} onTransformEnd={event=>{const n=event.target;change(e.id,{x:n.x(),y:n.y(),w:e.w*n.scaleX(),h:e.h*n.scaleY(),rotation:n.rotation()});n.scaleX(1);n.scaleY(1);}} points={(e.points||[]).map((v,i)=>v*(i%2?e.h:e.w))} stroke={e.color} strokeWidth={e.size} opacity={e.opacity} lineCap="round" lineJoin="round" globalCompositeOperation={e.eraser?'destination-out':'source-over'}/>)}
+            {draftStroke&&<Line points={draftStroke} stroke={brushColor} strokeWidth={tool==='eraser'?brushSize*4:brushSize} lineCap="round" lineJoin="round" globalCompositeOperation={tool==='eraser'?'destination-out':'source-over'}/>}
+          </Group></Layer>
+        </Stage>
+        <div className="canvas-zoom"><button onClick={()=>setZoom(z=>Math.max(.6,z-.2))} aria-label="Uzaklaştır"><Minus size={16}/></button><button onClick={()=>{setZoom(1);setPan({x:0,y:0});}}>{Math.round(zoom*100)}%</button><button onClick={()=>setZoom(z=>Math.min(4,z+.2))} aria-label="Yakınlaştır"><ZoomIn size={16}/></button></div>
+      </main>
+      <aside className="inspector">
+        <div className="inspector-heading"><span>{panel==='templates'?'Yerleşim':panel==='stickers'?'Çıkartmalar':panel==='photos'?'Fotoğraflar':panel==='pen'||panel==='eraser'?'Çizim':'Seçili öğe'}</span><button className="icon-button small" onClick={()=>setPanel(panel==='paper'?'properties':'paper')} title="Kâğıt rengi"><Layers size={17}/></button></div>
+        <div className="inspector-body">
+        {panel==='paper'?<><p className="field-label">Kâğıt</p><div className="paper-options">{Object.entries(papers).map(([id,color])=><button key={id} disabled={disabled} onClick={()=>commit({...docRef.current,paper:id as PageDoc['paper']})} style={{background:color}} className={doc.paper===id?'selected':''} aria-label={id==='ivory'?'Kırık beyaz':id==='mist'?'Açık gri':'Koyu kâğıt'}/>)}</div></>:null}
+        {panel==='photos'&&<><button className="button secondary full" disabled={disabled} onClick={()=>{setUploadKind('photo');inputRef.current?.click();}}><Upload size={17}/>Fotoğraf yükle</button><p className="muted small-copy">Fotoğrafa dokunarak sayfaya ekle.</p><div className="asset-grid">{assets.filter(a=>a.kind==='photo').map(a=><button key={a.id} disabled={disabled} onClick={()=>addPhoto(a)} title={a.filename}><PrivateImage src={assetUrl(a.id,'thumb')} alt={a.filename} loading="lazy"/></button>)}</div>{!assets.some(a=>a.kind==='photo')&&<div className="panel-empty"><ImagePlus/><p>Fotoğrafların burada görünecek.</p></div>}</>}
+        {panel==='templates'&&<><div className="template-grid">{templates.filter(t=>!doc.cover||t.id!=='panorama').map(t=><button key={t.id} disabled={readOnly} onClick={()=>{const ids=chosen.length?chosen:assets.filter(a=>a.kind==='photo').map(a=>a.id);setPreview(applyTemplate(t.id,ids.map(id=>assets.find(a=>a.id===id)!).filter(Boolean),doc.paper,doc.cover));}}><span className={'layout-glyph '+t.id}><i/><i/><i/><i/></span><span>{t.name}</span></button>)}</div>{preview&&<div className="template-confirm"><p>Yeni düzen mevcut yerleşimin yerine geçer. Fotoğrafların albümde kalır; düzeni geri alabilirsin.</p><button className="button primary full" onClick={()=>{commit(preview);setPreview(null);setSelected(null);}}>Bu düzeni uygula<Check size={16}/></button><button className="text-button" onClick={()=>setPreview(null)}>Vazgeç</button></div>}<p className="field-label">Kullanılacak fotoğraflar <span>{chosen.length||'Tümü'}</span></p><div className="asset-grid selectable">{assets.filter(a=>a.kind==='photo').map(a=><button key={a.id} className={chosen.includes(a.id)?'selected':''} onClick={()=>setChosen(ids=>ids.includes(a.id)?ids.filter(i=>i!==a.id):[...ids,a.id])}><PrivateImage src={assetUrl(a.id,'thumb')} alt={a.filename} loading="lazy"/>{chosen.includes(a.id)&&<Check size={16}/>}</button>)}</div></>}
+        {panel==='stickers'&&<><div className="sticker-grid">{stickers.map(s=><button key={s.id} title={s.name} disabled={disabled} onClick={()=>add(newElement('sticker',{stickerId:s.id,x:180,y:220,w:s.width*1.3,h:s.height*1.3}))}><img src={s.src} alt={s.name}/></button>)}</div><button className="button secondary full" disabled={disabled} onClick={()=>{setUploadKind('sticker');inputRef.current?.click();}}><Plus size={16}/>Kendi çıkartmanı yükle</button><div className="asset-grid">{assets.filter(a=>a.kind==='sticker').map(a=><button key={a.id} disabled={disabled} onClick={()=>addPhoto(a)}><PrivateImage src={assetUrl(a.id,'thumb')} alt={a.filename}/></button>)}</div></>}
+        {(panel==='pen'||panel==='eraser')&&<><p className="muted small-copy">{panel==='pen'?'Sayfanın üzerinde çiz.':'Silgi yalnızca çizimlerini etkiler.'}</p><label className="field-label">Renk<input type="color" value={brushColor} onChange={e=>setBrushColor(e.target.value)}/></label><label className="field-label">Kalınlık<input type="range" min="2" max="30" value={brushSize} onChange={e=>setBrushSize(+e.target.value)}/></label></>}
+        {panel==='properties'&&!selectedElement&&<div className="panel-empty"><MousePointer2/><p>Bir fotoğraf veya metin seçerek düzenle.</p></div>}
+        {panel==='properties'&&selectedElement&&<>
+          {selectedElement.type==='text'&&<><label className="field-label stacked">Not<textarea value={selectedElement.text} rows={3} onChange={e=>change(selected!,{text:e.target.value},'text:'+selected)} /></label><label className="field-label">Yazı tipi<select value={selectedElement.font} onChange={e=>change(selected!,{font:e.target.value as any})}><option>Commissioner</option><option>Literata</option></select></label><label className="field-label">Boyut<input type="range" min="16" max="120" value={selectedElement.size} onChange={e=>change(selected!,{size:+e.target.value},'size')}/></label><label className="field-label">Renk<input type="color" value={selectedElement.color||'#3f4b40'} onChange={e=>change(selected!,{color:e.target.value},'color')}/></label><label className="field-label">Hizalama<select value={selectedElement.align||'left'} onChange={e=>change(selected!,{align:e.target.value as any})}><option value="left">Sola</option><option value="center">Ortaya</option><option value="right">Sağa</option></select></label></>}
+          {selectedElement.type==='photo'&&<><label className="field-label stacked">Fotoğraf notu<textarea rows={2} maxLength={500} value={selectedElement.caption||''} onChange={e=>change(selected!,{caption:e.target.value},'caption')}/></label><label className="field-label">Tarih<input type="date" value={selectedElement.date||''} onChange={e=>change(selected!,{date:e.target.value})}/></label><label className="field-label">Yerleşim<select value={selectedElement.fit||'contain'} onChange={e=>change(selected!,{fit:e.target.value as any})}><option value="contain">Tamamını göster</option><option value="cover">Çerçeveyi doldur</option></select></label><label className="field-label">Kırpma / yakınlık<input type="range" min="1" max="4" step=".02" value={selectedElement.crop?.scale||1} onChange={e=>change(selected!,{crop:{scale:+e.target.value,x:selectedElement.crop?.x||0,y:selectedElement.crop?.y||0}},'crop')}/></label>{(['x','y'] as const).map(axis=><label className="field-label" key={axis}>{axis==='x'?'Yatay kadraj':'Dikey kadraj'}<input type="range" min="-1" max="1" step=".02" value={selectedElement.crop?.[axis]||0} onChange={e=>change(selected!,{crop:{scale:selectedElement.crop?.scale||1,x:selectedElement.crop?.x||0,y:selectedElement.crop?.y||0,[axis]:+e.target.value}},'crop')}/></label>)}<label className="check-field"><input type="checkbox" checked={!!selectedElement.frame} onChange={e=>change(selected!,{frame:e.target.checked})}/>Beyaz fotoğraf kenarı</label>{!doc.cover&&<button className="button secondary full" onClick={()=>change(selected!,{x:0,y:160,w:2000,h:930,rotation:0,fit:'contain',frame:false,crop:{scale:1,x:0,y:0}})}><Maximize2 size={16}/>İki sayfaya yay</button>}</>}
+          <label className="field-label">Döndür<input type="range" min="-180" max="180" step="1" value={selectedElement.rotation} onChange={e=>change(selected!,{rotation:+e.target.value},'rotate')}/></label>
+          <div className="property-actions"><button className="button secondary" onClick={()=>moveLayer(-1)}>Arkaya</button><button className="button secondary" onClick={()=>moveLayer(1)}>Öne</button></div><div className="property-actions"><button className="button secondary" onClick={()=>add({...selectedElement,id:crypto.randomUUID(),x:selectedElement.x+35,y:selectedElement.y+35})}><Copy size={15}/>Çoğalt</button><button className="button secondary danger-text" onClick={removeSelected}><Trash2 size={15}/>Kaldır</button></div>
+        </>}
+        </div>
+      </aside>
+    </div>
+    <div className="editor-toolbar" role="toolbar" aria-label="Sayfa araçları"><div className="tool-scroll">
+      {[["select",MousePointer2,'Seç'],['photos',ImagePlus,'Fotoğraf'],['templates',LayoutTemplate,'Şablon'],['text',Type,'Metin'],['pen',Pencil,'Kalem'],['eraser',Eraser,'Silgi'],['stickers',Sticker,'Çıkartma']].map(([id,Icon,label]:any)=><button key={id} className={(panel===id||tool===id)?'active':''} disabled={readOnly} onClick={()=>chooseTool(id)} title={label}><Icon size={20}/><span>{label}</span></button>)}
+      </div><span className="toolbar-separator"/><button onClick={()=>undo()} disabled={readOnly||!history.current.past.length} title="Geri al"><Undo2 size={20}/><span>Geri al</span></button><button onClick={()=>undo(true)} disabled={readOnly||!history.current.future.length} title="Yinele"><Redo2 size={20}/><span>Yinele</span></button>
+    </div>
+    <footer className="editor-pages"><button className="icon-button small" disabled={spreads[0]?.id===spreadId} onClick={()=>void navigate(spreads[spreads.findIndex(s=>s.id===spreadId)-1].id)} aria-label="Önceki sayfa"><ChevronLeft/></button><select value={spreadId} onChange={e=>void navigate(e.target.value)} aria-label="Sayfa seç">{spreads.map(s=><option key={s.id} value={s.id}>{s.position===-1?'Kapak':`Sayfa ${s.position*2+1}–${s.position*2+2}`}</option>)}</select><button className="icon-button small" disabled={spreads.at(-1)?.id===spreadId} onClick={()=>void navigate(spreads[spreads.findIndex(s=>s.id===spreadId)+1].id)} aria-label="Sonraki sayfa"><ChevronRight/></button><button className="text-button" onClick={()=>void addSpread()}><Plus size={16}/>Sayfa ekle</button></footer>
+    <input ref={inputRef} type="file" className="visually-hidden" multiple accept={uploadKind==='sticker'?'image/png,image/webp':'image/jpeg,image/png,image/webp'} onChange={e=>{void filesPicked(e.target.files);e.target.value='';}}/>
+    {uploadOpen&&<div className="upload-panel" role="region" aria-label="Fotoğraf yüklemeleri"><div className="inspector-heading"><span>{jobs.some(j=>j.state==='working')?'Fotoğraflar yükleniyor':'Fotoğraf yüklemeleri'}</span><button className="icon-button small" onClick={()=>setUploadOpen(false)} aria-label="Yükleme panelini kapat"><X size={17}/></button></div>{jobs.map((j,i)=><div className="upload-job" key={i}><span>{j.file.name}</span>{j.state==='done'?<Check size={16}/>:j.state==='error'?<CloudOff size={16}/>:<span>{Math.round(j.progress*100)}%</span>}<progress value={j.progress} max={1}/>{j.error&&<small>{j.error}</small>}</div>)}{jobs.some(j=>j.state==='error')&&<button className="button secondary full" onClick={()=>void uploadJobs(album.id,jobs,uploadKind,()=>setJobs([...jobs])).then(async()=>{const r=await request(`albums/${album.id}`);setAssets(r.assets);})}>Başarısız olanları yeniden dene</button>}</div>}
+  </div>;
+}

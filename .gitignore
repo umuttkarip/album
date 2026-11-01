@@ -1,0 +1,7 @@
+node_modules/
+web/
+.local/
+.dev.vars*
+.env*
+.wrangler/
+*.tsbuildinfo
