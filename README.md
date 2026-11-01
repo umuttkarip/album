@@ -2,6 +2,8 @@
 
 Umut ve Sude için fotoğraf defteri. Mobil öncelikli React/TypeScript arayüzü, esneyen Three.js sayfaları ve Konva serbest sayfa editörü.
 
+Arayüz: https://umuttkarip.github.io/album/ · Özel API: https://album-api.umuttkarip.workers.dev. Hesap sahibinin D1 `album` veritabanı ve özel R2 `album` kovası kullanılır.
+
 Arayüz bu GitHub deposundan GitHub Pages'e yayımlanır. Giriş ve özel fotoğraflar ayrı, hesap sahibinin yönettiği Cloudflare Worker/D1/R2 üzerinde çalışır. Bu depo fotoğraf, parola, oturum veya özel veri içermez. Sunucu adresi yapılandırılmadığında giriş devre dışıdır; başka bir sağlayıcıya otomatik yönlendirme yapılmaz.
 
 ## Geliştirme
