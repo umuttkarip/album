@@ -1,4 +1,5 @@
 import { blankDoc, newElement, applyTemplate, type Asset, type Album, type PageDoc, type PageElement, type Spread, type Paper } from './model';
+import { themedCover, themedSpread } from './themes';
 type Photo = Pick<Asset,'id'|'width'|'height'>;
 
 export function isAutomatic(doc: PageDoc) {
@@ -16,6 +17,7 @@ function tape(id:string,x:number,y:number,rotation=0):PageElement {
 function fittedPhoto(asset:Photo,x:number,y:number,w:number,h:number,rotation=0){const scale=Math.min(w/asset.width,h/asset.height),pw=asset.width*scale,ph=asset.height*scale;return photo(asset,x+(w-pw)/2,y+(h-ph)/2,pw,ph,rotation);}
 function photoTape(e:PageElement,id:string){const dx=e.w*.35,dy=-24,r=e.rotation*Math.PI/180;return tape(id,e.x+dx*Math.cos(r)-dy*Math.sin(r),e.y+dx*Math.sin(r)+dy*Math.cos(r),e.rotation-7);}
 export function automaticCover(assets:readonly Photo[],title:string,source?:PageDoc):PageDoc {
+  if(source?.designId)return themedCover(assets,title,source);
   const layout=source?.coverLayout||'auto',paper=source?.paper==='charcoal'&&source.autoLayout===undefined?'sage':source?.paper||'sage';
   const doc:PageDoc={...blankDoc(paper,true),autoLayout:true,coverLayout:layout,texture:source?.texture||'plain'};
   const photos=layout==='plain'?[]:assets.slice(0,layout==='single'?1:3);
@@ -26,6 +28,7 @@ export function automaticCover(assets:readonly Photo[],title:string,source?:Page
   return doc;
 }
 export function automaticSpread(assets:readonly Photo[],source:PageDoc,position=0):PageDoc {
+  if(source.designId)return themedSpread(assets,source,position);
   const doc:PageDoc={...blankDoc(source.paper),autoLayout:true,texture:source.texture||'plain'};
   if(assets.length<3){
     doc.elements=assets.map((a,i)=>fittedPhoto(a,110+i*1000,140,780,960,i?2:-3));

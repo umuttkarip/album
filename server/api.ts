@@ -1,6 +1,8 @@
 import { currentUser, createSession, verifyPassword, sessionToken, hashToken, expiredCookie, type AlbumEnv } from './auth';
 import { blankDoc, canRead, canEdit, validDoc, papers, type Album, type User, type PageDoc } from '../lib/model';
 import { isAutomatic } from '../lib/composition';
+import { themeDocument } from '../lib/themes';
+import { validDesign, type DesignId } from '../lib/design';
 
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 function fail(status: number, message: string): never { throw new ApiError(status,message); }
@@ -20,12 +22,12 @@ async function checkDocAssets(env: AlbumEnv,d: PageDoc,aid: string) {
   for(let start=0;start<ids.length;start+=80){const group=ids.slice(start,start+80);const result = await env.DB.prepare(`SELECT id FROM assets WHERE album_id=? AND ready=1 AND id IN (${group.map(()=>'?').join(',')})`).bind(aid,...group).all();
   if (result.results.length !== group.length) fail(400,'Sayfadaki fotoğraflardan biri bu albüme ait değil veya henüz yüklenmedi.');}
 }
-async function ensureAutomaticPages(env:AlbumEnv,aid:string,paper:PageDoc['paper']){
+async function ensureAutomaticPages(env:AlbumEnv,aid:string,paper:PageDoc['paper'],designId?:DesignId|null){
   const rows=await env.DB.prepare('SELECT doc FROM spreads WHERE album_id=? AND position>=0').bind(aid).all<{doc:string}>();
   if(!rows.results.length||rows.results.some(r=>!isAutomatic(JSON.parse(r.doc))))return;
   const count=await env.DB.prepare("SELECT COUNT(*) AS n FROM assets WHERE album_id=? AND ready=1 AND kind='photo'").bind(aid).first<{n:number}>();
   const missing=Math.max(0,Math.ceil((count?.n||0)/4)-rows.results.length);if(!missing)return;
-  const statements=Array.from({length:missing},()=>env.DB.prepare(`INSERT INTO spreads(id,album_id,position,doc,updated_at) SELECT ?,?,COALESCE(MAX(position),-1)+1,?,? FROM spreads WHERE album_id=? HAVING ?>(SELECT COUNT(*)*4 FROM spreads WHERE album_id=? AND position>=0)`).bind(crypto.randomUUID(),aid,JSON.stringify({...blankDoc(paper),autoLayout:true}),Date.now(),aid,count!.n,aid));
+  const statements=Array.from({length:missing},()=>env.DB.prepare(`INSERT INTO spreads(id,album_id,position,doc,updated_at) SELECT ?,?,COALESCE(MAX(position),-1)+1,?,? FROM spreads WHERE album_id=? HAVING ?>(SELECT COUNT(*)*4 FROM spreads WHERE album_id=? AND position>=0)`).bind(crypto.randomUUID(),aid,JSON.stringify(designId?themeDocument(designId):{...blankDoc(paper),autoLayout:true}),Date.now(),aid,count!.n,aid));
   await env.DB.batch(statements);
 }
 export async function api(req: Request, env: AlbumEnv): Promise<Response> {
@@ -62,11 +64,12 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
       if (method === 'POST') {
         const b = await body(req), title = String(b.title || '').trim(); if (!title || title.length > 100 || !['shared','personal'].includes(b.visibility)) fail(400,'Albüm adı ve türünü kontrol et.');
         const id=crypto.randomUUID(), now=Date.now(), paper=b.paper in papers?b.paper:'ivory';
-        const cover={...blankDoc('sage',true),autoLayout:true};
+        if(b.designId!==undefined&&!validDesign(b.designId))fail(400,'Tasarımı kontrol et.');
+        const designId:DesignId=b.designId||'collage',cover=themeDocument(designId,true);
         await env.DB.batch([
-          env.DB.prepare('INSERT INTO albums(id,title,visibility,owner_id,paper,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind(id,title,b.visibility,u.id,paper,now,now),
+          env.DB.prepare('INSERT INTO albums(id,title,visibility,owner_id,paper,design_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').bind(id,title,b.visibility,u.id,paper,designId,now,now),
           env.DB.prepare('INSERT INTO spreads(id,album_id,position,doc,updated_at) VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),id,-1,JSON.stringify(cover),now),
-          env.DB.prepare('INSERT INTO spreads(id,album_id,position,doc,updated_at) VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),id,0,JSON.stringify({...blankDoc(paper),autoLayout:true}),now),
+          env.DB.prepare('INSERT INTO spreads(id,album_id,position,doc,updated_at) VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),id,0,JSON.stringify(themeDocument(designId)),now),
         ]); return json({id},201);
       }
     }
@@ -78,10 +81,11 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
       }
       if (path.length === 2 && method === 'PATCH') {
         const b = await body(req), title=String(b.title||'').trim(), description=String(b.description||''); if(!title || title.length>100 || description.length>2000) fail(400,'Albüm bilgilerini kontrol et.');
-        await env.DB.prepare('UPDATE albums SET title=?,description=?,updated_at=? WHERE id=?').bind(title,description,Date.now(),a.id).run(); return json({ok:true});
+        if(b.designId!==undefined&&!validDesign(b.designId))fail(400,'Tasarımı kontrol et.');
+        await env.DB.prepare('UPDATE albums SET title=?,description=?,design_id=?,updated_at=? WHERE id=?').bind(title,description,b.designId||a.design_id||null,Date.now(),a.id).run(); return json({ok:true});
       }
       if (path[2] === 'spreads' && method === 'POST') {
-        const b=await body(req), d=b.doc || {...blankDoc(a.paper),autoLayout:false}; if(!validDoc(d) || d.cover) fail(400,'Geçersiz sayfa.'); await checkDocAssets(env,d,a.id);
+        const b=await body(req), d=b.doc || {...(a.design_id?themeDocument(a.design_id):blankDoc(a.paper)),autoLayout:false}; if(!validDoc(d) || d.cover) fail(400,'Geçersiz sayfa.'); await checkDocAssets(env,d,a.id);
         const id=crypto.randomUUID();
         await env.DB.prepare('INSERT INTO spreads(id,album_id,position,doc,updated_at) SELECT ?,?,COALESCE(MAX(position),-1)+1,?,? FROM spreads WHERE album_id=?').bind(id,a.id,JSON.stringify(d),Date.now(),a.id).run();
         const r=await env.DB.prepare('SELECT * FROM spreads WHERE id=?').bind(id).first<Row>(); return json({spread:publicSpread(r!)},201);
@@ -132,7 +136,7 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         await env.DB.prepare('UPDATE assets SET uploaded=uploaded|? WHERE id=?').bind(mask,a.id).run();return json({ok:true});
       }
       if (method === 'POST' && variant==='complete') {
-        if(a.uploaded!==7) fail(409,'Fotoğrafın bütün kopyaları henüz yüklenmedi.'); await env.DB.prepare('UPDATE assets SET ready=1 WHERE id=?').bind(a.id).run();if(a.kind==='photo'){const parent=await album(env,a.album_id,u);await ensureAutomaticPages(env,parent.id,parent.paper);}return json({ok:true});
+        if(a.uploaded!==7) fail(409,'Fotoğrafın bütün kopyaları henüz yüklenmedi.'); await env.DB.prepare('UPDATE assets SET ready=1 WHERE id=?').bind(a.id).run();if(a.kind==='photo'){const parent=await album(env,a.album_id,u);await ensureAutomaticPages(env,parent.id,parent.paper,parent.design_id);}return json({ok:true});
       }
       if (method === 'GET' && variant!=='complete' && a.ready) {
         const object=await env.BUCKET.get(`${a.id}/${variant}`);if(!object) fail(404,'Dosya bulunamadı.');

@@ -1,5 +1,7 @@
 import { publicUrl } from './network';
-export interface StickerSpec { id: string; name: string; src: string; width: number; height: number }
+import { extraStickers } from './stickers-extra';
+export interface StickerSpec { id: string; name: string; src: string; width: number; height: number; packId?:string }
+export const stickerPacks=[{id:'paper',name:'Kâğıt ve bant'},{id:'drawing',name:'Çizimler'},{id:'objects',name:'Nesneler'},{id:'supplied',name:'Gönderdiklerin'},{id:'uploaded',name:'Yüklediklerin'}];
 
 export const stickers: StickerSpec[] = [
   {
@@ -172,5 +174,8 @@ export const stickers: StickerSpec[] = [
   }
 ];
 
+for(const s of stickers)s.packId=/tape|label|tag|film|corners/.test(s.id)?'paper':/arrow|marker|star|spark|asterisk|wave/.test(s.id)?'drawing':'objects';
+stickers.push(...extraStickers);
+for(const [id,name,w,h] of [['crying-cat','Ağlayan kedi',220,153],['thumb-cat','Başparmak kedi',210,196],['tiny-cat','Minik kedi',150,164],['shy-character','Çekingen karakter',180,180],['lollipop-character','Şekerli karakter',180,180]] as const)stickers.push({id:'supplied-'+id,name,src:'/stickers/supplied/'+id+'.png',width:w,height:h,packId:'supplied'});
 for(const sticker of stickers)sticker.src=publicUrl(sticker.src);
 export const STICKERS = stickers;

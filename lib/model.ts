@@ -1,5 +1,5 @@
 import { apiUrl } from './network';
-import { fonts, type FontFamily } from './design';
+import { fonts, validDesign, patterns, type FontFamily, type DesignId, type PaperSurface } from './design';
 export const PAGE_W = 1000, PAGE_H = 1250, SPREAD_W = 2000;
 export type User = { id: 'umut' | 'sude'; name: string; admin: boolean };
 export type Paper = 'ivory' | 'mist' | 'charcoal' | 'sage' | 'sand' | 'lilac';
@@ -12,12 +12,13 @@ export type PageElement = {
   fontWeight?: 400 | 600 | 700; fontStyle?: 'normal' | 'italic';
   align?: 'left' | 'center' | 'right'; fit?: 'contain' | 'cover'; frame?: boolean;
   crop?: { scale: number; x: number; y: number }; points?: number[]; eraser?: boolean;
+  frameStyle?: 'none'|'white'|'polaroid'|'torn';
   caption?: string; date?: string; captionFont?: FontFamily; captionSize?: number; captionColor?: string;
 };
-export type PageDoc = { version: 1; paper: Paper; cover: boolean; elements: PageElement[]; autoLayout?: boolean; texture?: 'plain' | 'dots' | 'lines'; coverLayout?: 'auto' | 'single' | 'collage' | 'plain' };
+export type PageDoc = { version: 1; paper: Paper; cover: boolean; elements: PageElement[]; autoLayout?: boolean; texture?: 'plain' | 'dots' | 'lines'; coverLayout?: 'auto' | 'single' | 'collage' | 'plain'; designId?:DesignId; surfaces?:{left:PaperSurface;right?:PaperSurface} };
 export type Spread = { id: string; album_id: string; position: number; revision: number; doc: PageDoc; lock_owner?: string | null; lock_expires?: number };
 export type Asset = { id: string; album_id: string; kind: 'photo' | 'sticker'; filename: string; mime: string; width: number; height: number; created_by: string; ready: number };
-export type Album = { id: string; title: string; description: string; visibility: 'shared' | 'personal'; owner_id: string; paper: Paper; created_at: number; updated_at: number; photo_count?: number; cover_asset_id?: string; cover_doc?: PageDoc; cover_assets?: Pick<Asset, 'id'|'width'|'height'>[] };
+export type Album = { id: string; title: string; description: string; visibility: 'shared' | 'personal'; owner_id: string; paper: Paper; design_id?:DesignId|null; created_at: number; updated_at: number; photo_count?: number; cover_asset_id?: string; cover_doc?: PageDoc; cover_assets?: Pick<Asset, 'id'|'width'|'height'>[] };
 export const uid = () => crypto.randomUUID();
 export const blankDoc = (paper: Paper = 'ivory', cover = false): PageDoc => ({ version: 1, paper, cover, elements: [] });
 export const canRead = (u: User, a: Pick<Album, 'visibility' | 'owner_id'>) => u.admin || a.visibility === 'shared' || a.owner_id === u.id;
@@ -30,7 +31,8 @@ export const templates = [
   { id: 'duo', name: 'İkili', count: 4, description: 'Her sayfada iki fotoğraf' },
   { id: 'grid', name: 'Dörtlü', count: 8, description: 'Dört fotoğraflı sayfalar' },
   { id: 'note', name: 'Fotoğraf ve not', count: 2, description: 'Fotoğrafa bir cümle ekle' },
-  { id: 'panorama', name: 'Çift sayfa', count: 1, description: 'İki sayfaya yayılan tek fotoğraf' },
+  { id: 'panorama', name: 'İki sayfa · Sığdır', count: 1, description: 'Fotoğrafın tamamı iki sayfada' },
+  { id: 'panorama-fill', name: 'İki sayfa · Doldur', count: 1, description: 'Kenarlara kadar tek fotoğraf' },
   { id: 'scrapbook', name: 'Kolaj', count: 4, description: 'Serbest fotoğraf düzeni' },
   { id: 'postcard', name: 'Kartpostal', count: 2, description: 'Fotoğraf ve yazı alanı' },
   { id: 'film', name: 'Film şeridi', count: 6, description: 'Üçlü fotoğraf şeritleri' },
@@ -48,8 +50,8 @@ export function applyTemplate(id: string, assets: readonly Pick<Asset, 'id' | 'w
     }
     return doc;
   }
-  if (id === 'panorama' && !cover) {
-    if (assets[0]) doc.elements.push(newElement('photo', { assetId: assets[0].id, x: 0, y: 160, w: 2000, h: 930, fit: 'contain' }));
+  if ((id === 'panorama'||id==='panorama-fill') && !cover) {
+    if (assets[0]) doc.elements.push(newElement('photo', { assetId: assets[0].id, x: id==='panorama'?70:0, y: id==='panorama'?90:0, w: id==='panorama'?1860:2000, h: id==='panorama'?1070:1250, fit: id==='panorama'?'contain':'cover', frameStyle:'none' }));
     return doc;
   }
   for (let page = 0; page < (cover ? 1 : 2); page++) {
@@ -75,12 +77,15 @@ export function validDoc(value: unknown): value is PageDoc {
   if(d.autoLayout!==undefined&&typeof d.autoLayout!=='boolean')return false;
   if(d.texture!==undefined&&!['plain','dots','lines'].includes(d.texture))return false;
   if(d.coverLayout!==undefined&&!['auto','single','collage','plain'].includes(d.coverLayout))return false;
+  if(d.designId!==undefined&&!validDesign(d.designId))return false;
+  if(d.surfaces!==undefined){if(!d.surfaces||typeof d.surfaces!=='object')return false;const valid=(s:PaperSurface)=>s&&/^#[a-f\d]{6}$/i.test(s.color)&&patterns.some(p=>p.id===s.pattern)&&(s.ink===undefined||/^#[a-f\d]{6}$/i.test(s.ink));if(!valid(d.surfaces.left)||(d.surfaces.right!==undefined&&!valid(d.surfaces.right)))return false;}
   const ids = new Set<string>();
   return d.elements.every(e => {
     if (!e || typeof e.id !== 'string' || e.id.length > 80 || ids.has(e.id) || !['photo','text','sticker','stroke'].includes(e.type)) return false;
     ids.add(e.id);
     if (![e.x,e.y,e.w,e.h,e.rotation,e.opacity].every(Number.isFinite) || e.w <= 0 || e.h <= 0 || Math.abs(e.x) > 8000 || Math.abs(e.y) > 8000 || e.w > 8000 || e.h > 8000 || e.opacity < 0 || e.opacity > 1) return false;
     if (e.type === 'photo' && typeof e.assetId !== 'string') return false;
+    if(e.frameStyle!==undefined&&!['none','white','polaroid','torn'].includes(e.frameStyle))return false;
     if (e.caption!==undefined && (typeof e.caption!=='string'||e.caption.length>500)) return false;
     if (e.date!==undefined && (typeof e.date!=='string'||(e.date!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(e.date)))) return false;
     if (e.font!==undefined&&!fonts.some(f=>f.family===e.font))return false;

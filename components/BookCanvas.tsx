@@ -63,5 +63,5 @@ function Scene({canvas,book,cover,turn,onDone,onLost,spanning}:{canvas:HTMLCanva
 }
 class Boundary extends React.Component<{children:React.ReactNode;fallback:React.ReactNode;onError:()=>void},{failed:boolean}>{state={failed:false};static getDerivedStateFromError(){return {failed:true};}componentDidCatch(){this.props.onError();}render(){return this.state.failed?this.props.fallback:this.props.children;}}
 export default function BookCanvas(props:{canvas:HTMLCanvasElement;book:boolean;cover:boolean;turn:Turn|null;onDone:(cancelled:boolean)=>void;onLost:()=>void;spanning:boolean}) {
-  return <Boundary fallback={<img className="flat-page" src={props.canvas.toDataURL('image/webp',.92)} alt="Albüm sayfası"/>} onError={props.onLost}><Canvas orthographic camera={{position:[0,0,8],near:.01,far:30}} frameloop="demand" dpr={[1,1.5]} gl={{alpha:true,antialias:true,powerPreference:'low-power'}}><Scene {...props}/></Canvas></Boundary>;
+  return <Boundary fallback={<img className="flat-page" src={props.canvas.toDataURL('image/webp',.92)} alt="Albüm sayfası"/>} onError={props.onLost}><Canvas orthographic camera={{position:[0,0,8],near:.01,far:30,manual:true,left:-1,right:1,top:H/2,bottom:-H/2}} frameloop="demand" dpr={[1,1.5]} gl={{alpha:true,antialias:true,powerPreference:'low-power'}}><Scene {...props}/></Canvas></Boundary>;
 }
