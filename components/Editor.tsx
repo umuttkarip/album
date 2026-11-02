@@ -6,7 +6,7 @@ import Konva from 'konva';
 import { ArrowLeft, Plus, ImagePlus, LayoutTemplate, Type, Pencil, Eraser, Sticker, MousePointer2, Undo2, Redo2, CloudCheck, CloudOff, LoaderCircle, ChevronLeft, ChevronRight, Layers, Palette, Bold, Italic, Upload, X, Check, Copy, Trash2, Maximize2, Minus, ZoomIn, LockKeyhole } from 'lucide-react';
 import { papers, templates, blankDoc, newElement, applyTemplate, photoBox, assetUrl, captionText, type Album, type Spread, type Asset, type User, type PageDoc, type PageElement } from '../lib/model';
 import { request, post, draftKey, localDraft, uploadJobs, type UploadJob } from '../lib/client';
-import { automaticCover, isAutomatic, resolveSpreads } from '../lib/composition';
+import { automaticCover, isAutomatic, resolveSpreads, photoPlacement } from '../lib/composition';
 import { paperNames, textures } from '../lib/design';
 import { DocumentPreview, FontPicker } from './DocumentPreview';
 import { imageFor, elementSrc, paintPaper } from '../lib/render';
@@ -85,7 +85,7 @@ export default function Editor({album,spreads:initialSpreads,assets:initialAsset
   async function leave(){await save();await onRefresh();onBack();}
   async function addSpread(){await save();try{const r=await post(`albums/${album.id}/spreads`,{});setSpreads(s=>[...s,r.spread]);setSpreadId(r.spread.id);}catch(e){setError((e as Error).message);}}
   const add=(e:PageElement)=>{commit({...docRef.current,elements:[...docRef.current.elements,e]});setSelected(e.id);setTool('select');};
-  const addPhoto=(a:Asset)=>add(newElement(a.kind==='sticker'?'sticker':'photo',{assetId:a.id,x:doc.cover?100:110,y:180,w:doc.cover?800:780,h:Math.min(900,780*a.height/a.width),fit:'contain',frame:a.kind==='photo'}));
+  const addPhoto=(a:Asset)=>{const existing=docRef.current.elements.find(e=>e.assetId===a.id);if(existing){setSelected(existing.id);setTool('select');setPanel('properties');return;}add(newElement(a.kind==='sticker'?'sticker':'photo',{assetId:a.id,...photoPlacement(docRef.current,a),fit:'contain',frame:a.kind==='photo'}));setPanel('properties');};
   const removeSelected=()=>{commit({...docRef.current,elements:docRef.current.elements.filter(e=>e.id!==selected)});setSelected(null);};
   const moveLayer=(delta:number)=>{const es=[...docRef.current.elements],i=es.findIndex(e=>e.id===selected),j=Math.max(0,Math.min(es.length-1,i+delta));if(i<0)return;const [item]=es.splice(i,1);es.splice(j,0,item);commit({...docRef.current,elements:es});};
   const position=()=>groupRef.current?.getRelativePointerPosition();

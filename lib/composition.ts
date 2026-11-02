@@ -55,3 +55,11 @@ export function albumCover(album:Album):PageDoc {
   if(album.cover_doc&&!isAutomatic(album.cover_doc))return album.cover_doc;
   return automaticCover(album.cover_assets||[],album.title,album.cover_doc);
 }
+export function photoPlacement(doc:PageDoc,asset:Photo){
+  if(doc.cover)return {x:100,y:140,w:800,h:Math.min(900,800*asset.height/asset.width)};
+  const cells=[[110,150,780,930],[1110,150,780,930],[110,710,780,410],[1110,710,780,410]];
+  const occupied=doc.elements.filter(e=>e.type==='photo'||e.type==='text').map(e=>{const r=e.rotation*Math.PI/180,c=Math.cos(r),s=Math.sin(r),corners=[[0,0],[e.w,0],[0,e.h],[e.w,e.h]].map(([x,y])=>({x:e.x+x*c-y*s,y:e.y+x*s+y*c}));return {l:Math.min(...corners.map(p=>p.x)),r:Math.max(...corners.map(p=>p.x)),t:Math.min(...corners.map(p=>p.y)),b:Math.max(...corners.map(p=>p.y))};});
+  const candidates=cells.map(([x,y,w,h],index)=>({x,y,w,h,index,score:occupied.reduce((sum,b)=>sum+Math.max(0,Math.min(x+w,b.r)-Math.max(x,b.l))*Math.max(0,Math.min(y+h,b.b)-Math.max(y,b.t))/(w*h),0)}));
+  candidates.sort((a,b)=>a.score-b.score||a.index-b.index);const {x,y,w,h}=candidates[0],scale=Math.min(w/asset.width,h/asset.height),pw=asset.width*scale,ph=asset.height*scale;
+  return {x:x+(w-pw)/2,y:y+(h-ph)/2,w:pw,h:ph};
+}

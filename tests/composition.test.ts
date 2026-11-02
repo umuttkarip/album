@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { automaticCover, resolveSpreads, isAutomatic } from '../lib/composition';
+import { automaticCover, resolveSpreads, isAutomatic, photoPlacement } from '../lib/composition';
 import { blankDoc, newElement, validDoc, type Asset, type Spread } from '../lib/model';
 const assets=(n:number):Asset[]=>Array.from({length:n},(_,i)=>({id:'p'+i,album_id:'a',kind:'photo',filename:'photo.jpg',mime:'image/jpeg',width:1200,height:900,created_by:'umut',ready:1}));
 const spread=(id:string,position:number,doc=blankDoc()):Spread=>({id,album_id:'a',position,doc,revision:0});
@@ -19,3 +19,4 @@ test('automatic spreads place eight photos once and leave a deliberately cleared
 test('custom font and paper metadata round-trips and rejects invalid values',()=>{
   const doc={...blankDoc('lilac'),texture:'dots' as const,autoLayout:false,elements:[newElement('text',{text:'şğİı',font:'DM Serif Display',fontStyle:'italic',fontWeight:400,size:64}),newElement('photo',{assetId:'p',caption:'Tarih',captionFont:'Caveat',captionColor:'#58604e',captionSize:40})]};assert.ok(validDoc(JSON.parse(JSON.stringify(doc))));assert.equal(validDoc({...doc,texture:'wrong'}),false);assert.equal(validDoc({...doc,elements:[{...doc.elements[0],font:'unknown'}]}),false);assert.equal(isAutomatic({...blankDoc(),autoLayout:false}),false);
 });
+test('adding another photo chooses the free side without moving existing elements',()=>{const doc={...blankDoc(),autoLayout:false,elements:[newElement('photo',{assetId:'one',x:110,y:150,w:780,h:930})]};const pos=photoPlacement(doc,assets(1)[0]);assert.ok(pos.x>=1000);assert.equal(doc.elements[0].x,110);});
