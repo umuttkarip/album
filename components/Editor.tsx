@@ -43,6 +43,7 @@ export default function Editor({album,spreads:initialSpreads,assets:initialAsset
   useEffect(()=>{spreadsRef.current=spreads;assetsRef.current=assets;},[spreads,assets]);
   const history=useRef<{past:PageDoc[];future:PageDoc[];group:string;time:number}>({past:[],future:[],group:'',time:0});
   useEffect(()=>setCropMode(false),[selected,spreadId]);
+  useEffect(()=>setPaperSide('left'),[spreadId]);
   const current=spreads.find(s=>s.id===spreadId)!,width=doc.cover?1000:2000,focus=doc.cover||spansCenter(preview||doc)?'full':pageFocus,visibleWidth=focus==='full'?width:1000,focusStart=focus==='right'?1000:0,fit=Math.min((viewport.w-48)/visibleWidth,(viewport.h-48)/1250),scale=fit*zoom,offset={x:(viewport.w-visibleWidth*scale)/2-focusStart*scale+pan.x,y:(viewport.h-1250*scale)/2+pan.y};
   const displayed=preview||doc,selectedElement=doc.elements.find(e=>e.id===selected),disabled=readOnly||!!preview;
 
@@ -88,7 +89,7 @@ export default function Editor({album,spreads:initialSpreads,assets:initialAsset
   async function leave(){await save();await onRefresh();onBack();}
   async function addSpread(){await save();try{const r=await post(`albums/${album.id}/spreads`,{});setSpreads(s=>[...s,r.spread]);setSpreadId(r.spread.id);}catch(e){setError((e as Error).message);}}
   const add=(e:PageElement)=>{if(!docRef.current.cover&&pageFocus==='right'&&e.x<1000&&e.x+e.w<1000)e={...e,x:e.x+1000};commit({...docRef.current,elements:[...docRef.current.elements,e]});setSelected(e.id);setTool('select');};
-  const addPhoto=(a:Asset)=>{const existing=docRef.current.elements.find(e=>e.assetId===a.id);if(existing){if(pageFocus!=='full')setPageFocus(existing.x>=1000?'right':'left');setSelected(existing.id);setTool('select');setPanel('properties');setPanelOpen(true);return;}add(newElement(a.kind==='sticker'?'sticker':'photo',{assetId:a.id,...photoPlacement(docRef.current,a),fit:'contain',frame:a.kind==='photo'}));setPanel('properties');setPanelOpen(true);};
+  const addPhoto=(a:Asset)=>{const existing=docRef.current.elements.find(e=>e.assetId===a.id);if(existing){if(pageFocus!=='full')setPageFocus(existing.x>=1000?'right':'left');setSelected(existing.id);setTool('select');setPanel('properties');setPanelOpen(true);return;}add(newElement(a.kind==='sticker'?'sticker':'photo',{assetId:a.id,...(a.kind==='sticker'?{x:650,y:900,w:Math.min(260,260*a.width/a.height),h:Math.min(260,260*a.height/a.width)}:photoPlacement(docRef.current,a)),fit:'contain',frame:a.kind==='photo'}));setPanel('properties');setPanelOpen(true);};
   const removeSelected=()=>{commit({...docRef.current,elements:docRef.current.elements.filter(e=>e.id!==selected)});setSelected(null);};
   const moveLayer=(delta:number)=>{const es=[...docRef.current.elements],i=es.findIndex(e=>e.id===selected),j=Math.max(0,Math.min(es.length-1,i+delta));if(i<0)return;const [item]=es.splice(i,1);es.splice(j,0,item);commit({...docRef.current,elements:es});};
   const position=()=>groupRef.current?.getRelativePointerPosition();

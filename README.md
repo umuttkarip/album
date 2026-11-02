@@ -27,3 +27,9 @@ Kişisel albümleri sahibi ve yönetici görebilir; yalnız sahibi düzenler. Or
 ## Kapak ve sayfa düzeni
 
 Boş veya otomatik sayfalar, yüklenen fotoğraflardan düzen üretir; özel düzenler korunur. Kapak 0/1/3 fotoğrafa göre renkli, tek fotoğraflı veya kolaj olur. Tamamen otomatik albüm yüklemelerle her dört fotoğrafta bir sayfa çifti ekler. Dokuz şablon gerçek fotoğraflarla önizlenir; dört font, kalın/italik metin, not yazısı, altı kâğıt ve üç doku seçilebilir. Bütün alanlar aynı sürümlü belgeye kaydolur. CI yayın öncesinde font yollarını, gerçek WOFF2 dosyalarını ve özel API'nin oturumsuz erişimi reddetmesini denetler.
+
+## Tasarımlar ve güncelleme
+
+Altı tasarım kapak ve sayfa önizlemeleriyle seçilir. Albüm ayarındaki yeni tasarım yalnız yeni sayfaların varsayılanıdır; mevcut bir sayfada Kâğıt bölümünden önizlenip uygulanır. İki sayfa Sığdır/Doldur, bağımsız sol/sağ kâğıt, dört fotoğraf kenarı ve mobil çalışma odağı aynı belge modelini kullanır. 48 malzeme, beş şeffaf kullanıcı görseli ve özel yüklemeler ayrı paketlerdedir.
+
+Worker güncellemesinden önce `npx wrangler d1 migrations apply album --remote --config wrangler.album.jsonc` ile0001 migration'ını uygula. Eski belgeler ve orijinal fotoğraflar korunur. Fiziksel Android dokunma testi, responsive tarayıcı kontrolünden ayrıdır.
