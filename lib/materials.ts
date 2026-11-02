@@ -14,6 +14,18 @@ export function drawPaper(ctx:CanvasRenderingContext2D,doc:PageDoc,width:number)
   if(doc.cover)drawSurface(ctx,doc.surfaces?.left||fallback,0,width);
   else {drawSurface(ctx,doc.surfaces?.left||fallback,0,1000);drawSurface(ctx,doc.surfaces?.right||doc.surfaces?.left||fallback,1000,1000);}
 }
+/** A continuous image stays intact; light and contact shading describe two paper faces. */
+export function drawBookFold(ctx:CanvasRenderingContext2D){
+  ctx.save();
+  const valley=ctx.createLinearGradient(922,0,1016,0);
+  valley.addColorStop(0,'rgba(28,25,20,0)');valley.addColorStop(.48,'rgba(28,25,20,.018)');valley.addColorStop(.74,'rgba(28,25,20,.075)');valley.addColorStop(.82,'rgba(18,18,16,.22)');valley.addColorStop(.86,'rgba(18,18,16,.12)');valley.addColorStop(1,'rgba(28,25,20,0)');
+  ctx.fillStyle=valley;ctx.fillRect(922,0,94,1250);
+  const shoulder=ctx.createLinearGradient(1000,0,1076,0);
+  shoulder.addColorStop(0,'rgba(255,249,230,.20)');shoulder.addColorStop(.07,'rgba(255,249,230,.115)');shoulder.addColorStop(.38,'rgba(255,249,230,.035)');shoulder.addColorStop(1,'rgba(255,249,230,0)');
+  ctx.fillStyle=shoulder;ctx.fillRect(1000,0,76,1250);
+  ctx.fillStyle='rgba(22,24,20,.16)';ctx.fillRect(999,0,1,1250);
+  ctx.restore();
+}
 export function tornPath(ctx:CanvasRenderingContext2D,x:number,y:number,w:number,h:number){
   ctx.beginPath();const steps=48;
   for(let edge=0;edge<4;edge++)for(let i=0;i<=steps;i++){const t=i/steps,j=(Math.sin(i*13.73+edge*4.32)*.5+.5)*7;let px=x,py=y;if(edge===0){px+=t*w;py+=j;}if(edge===1){px+=w-j;py+=t*h;}if(edge===2){px+=(1-t)*w;py+=h-j;}if(edge===3){px+=j;py+=(1-t)*h;}if(!edge&&!i)ctx.moveTo(px,py);else ctx.lineTo(px,py);}ctx.closePath();

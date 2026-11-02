@@ -8,7 +8,7 @@ import { papers, templates, blankDoc, newElement, applyTemplate, photoBox, asset
 import { request, post, draftKey, localDraft, uploadJobs, type UploadJob } from '../lib/client';
 import { automaticCover, isAutomatic, resolveSpreads, photoPlacement } from '../lib/composition';
 import { paperNames, textures, patterns, surfaceColors, type PaperSurface } from '../lib/design';
-import {drawPhoto} from '../lib/materials';
+import {drawPhoto,drawBookFold} from '../lib/materials';
 import {themeDocument,styleTemplate} from '../lib/themes';
 import ThemePicker from './ThemePicker';
 import { DocumentPreview, FontPicker } from './DocumentPreview';
@@ -150,6 +150,7 @@ export default function Editor({album,spreads:initialSpreads,assets:initialAsset
           <Layer listening={!disabled&&tool==="select"}><Group x={offset.x} y={offset.y} scaleX={scale} scaleY={scale} clipX={focusStart} clipY={0} clipWidth={visibleWidth} clipHeight={1250}>
             {displayed.elements.filter(e=>e.type==='stroke').map(e=><Line key={e.id} id={e.id} x={e.x} y={e.y} rotation={e.rotation} listening={!e.eraser} draggable={!disabled&&tool==='select'} onClick={()=>{setSelected(e.id);setPanel('properties');}} onTap={()=>{setSelected(e.id);setPanel('properties');}} onDragEnd={event=>change(e.id,{x:event.target.x(),y:event.target.y()})} onTransformEnd={event=>{const n=event.target;change(e.id,{x:n.x(),y:n.y(),w:e.w*n.scaleX(),h:e.h*n.scaleY(),rotation:n.rotation()});n.scaleX(1);n.scaleY(1);}} points={(e.points||[]).map((v,i)=>v*(i%2?e.h:e.w))} stroke={e.color} strokeWidth={e.size} opacity={e.opacity} lineCap="round" lineJoin="round" globalCompositeOperation={e.eraser?'destination-out':'source-over'}/>)}
             {draftStroke&&<Line points={draftStroke} stroke={brushColor} strokeWidth={tool==='eraser'?brushSize*4:brushSize} lineCap="round" lineJoin="round" globalCompositeOperation={tool==='eraser'?'destination-out':'source-over'}/>}
+            {!doc.cover&&<KShape listening={false} sceneFunc={ctx=>drawBookFold((ctx as any)._context)}/>}
           </Group></Layer>
         </Stage>
         {!doc.cover&&<div className="canvas-page-focus" role="group" aria-label="Çalışma alanı görünümü">{([['left','Sol'],['right','Sağ'],['full','Birlikte']] as const).map(([id,label])=><button key={id} aria-pressed={focus===id} className={focus===id?'active':''} onClick={()=>{setPageFocus(id);if(id!=='full')setPaperSide(id);setZoom(1);setPan({x:0,y:0});}}>{label}</button>)}</div>}

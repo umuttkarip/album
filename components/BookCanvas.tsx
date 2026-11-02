@@ -27,7 +27,6 @@ const fragment=`uniform sampler2D frontMap; uniform sampler2D backMap; uniform f
  #include <colorspace_fragment>
  }`;
 function Sheet({map,x,z=0,width=1,opacity=1}:{map:THREE.Texture;x:number;z?:number;width?:number;opacity?:number}) {return <mesh position={[x,0,z]}><planeGeometry args={[width,H]}/><meshBasicMaterial map={map} toneMapped={false} transparent alphaTest={.01} opacity={opacity}/></mesh>;}
-function Fold({spanning}:{spanning:boolean}){return <mesh position={[0,0,.003]}><planeGeometry args={[.075,H]}/><shaderMaterial transparent depthWrite={false} vertexShader={vertex} uniforms={{strength:{value:spanning?.065:.14}}} fragmentShader={`uniform float strength; varying vec2 vUv; void main(){float edge=1.0-abs(vUv.x-.5)*2.0;gl_FragColor=vec4(.29,.28,.23,pow(edge,2.0)*strength);}`}/></mesh>;}
 function Scene({canvas,book,cover,turn,onDone,onLost,spanning}:{canvas:HTMLCanvasElement;book:boolean;cover:boolean;turn:Turn|null;onDone:(cancelled:boolean)=>void;onLost:()=>void;spanning:boolean}) {
   const {camera,size,invalidate,gl}=useThree();
   const turning=useRef<THREE.Mesh>(null),shadow=useRef<THREE.Mesh>(null),leftUnder=useRef<THREE.Mesh>(null),done=useRef(-1);
@@ -66,7 +65,7 @@ function Scene({canvas,book,cover,turn,onDone,onLost,spanning}:{canvas:HTMLCanva
   });
   const backingColor='#e9e4d7',baseX=book?(cover?.5:0):0,baseW=book&&!cover?2:1;
   if(!turn)return <>
-    {book&&!cover?<><Sheet map={maps.cl} x={-.5}/><Sheet map={maps.cr} x={.5}/><Fold spanning={spanning}/></>:<Sheet map={maps.cr} x={baseX}/>}
+    {book&&!cover?<><Sheet map={maps.cl} x={-.5}/><Sheet map={maps.cr} x={.5}/></>:<Sheet map={maps.cr} x={baseX}/>}
   </>;
   return <>
     {book?<>

@@ -36,4 +36,6 @@ Yeni albüm ekranında büyük kapak/açık sayfa önizlemesi ve fotoğrafsız k
 
 Cilt rengi kayıtlı kapak yüzeyini devralır; kütüphane yaprakları gerçek sayfa önizlemeleridir. Mobil editörde Fotoğraf/Şablon/Metin/Çıkartma araçları görünür; Diğer menüsü çizim ve kâğıt araçlarını açar. Günler küçük yığınları 4:5, açılan gün fotoğrafları kaynak oranıyla gösterir. Gerektiğinde çizim ve sınırlı görüntü/doku önbellekleri korunur.
 
+Okuyucu ilk açılışta tek sayfa kullanır; yeni tercih anahtarı eski ikili varsayılanını devralmaz. Dikey ekranda çift sayfa serbesttir ve yatay kullanım önerilir. Geniş yatay telefonlarda kontroller defterin yanlarına taşınır; cihazı döndürmek sayfayı veya tercihi değiştirmez. Arka kâğıt blokları gerçek sol/sağ yüzlerden oluşturulur; cilt gölgesi/ışığı editör, okuyucu ve önizlemede ortak çizilir.
+
 Worker güncellemesinden önce `npx wrangler d1 migrations apply album --remote --config wrangler.album.jsonc` ile0001 migration'ını uygula. Eski belgeler ve orijinal fotoğraflar korunur. Fiziksel Android dokunma testi, responsive tarayıcı kontrolünden ayrıdır.

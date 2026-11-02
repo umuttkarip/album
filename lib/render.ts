@@ -1,7 +1,7 @@
 import { PAGE_H, PAGE_W, SPREAD_W, papers, photoBox, assetUrl, spansCenter, captionText, type PageDoc, type PageElement, type Spread } from './model';
 import { stickers } from './stickers';
 import { fetchAsset, isPrivateAsset } from './network';
-import { drawPaper, drawPhoto } from './materials';
+import { drawPaper, drawPhoto,drawBookFold } from './materials';
 const cache = new Map<string,Promise<HTMLImageElement>>();
 const imageBytes=new Map<string,number>();
 function trimImages(){let bytes=[...imageBytes.values()].reduce((a,b)=>a+b,0);for(const key of cache.keys()){if(bytes<=48*1024*1024&&cache.size<=36)break;const size=imageBytes.get(key);if(size===undefined)continue;bytes-=size;cache.delete(key);imageBytes.delete(key);}}
@@ -39,6 +39,7 @@ export async function paintDoc(doc: PageDoc, pixelWidth = 1600): Promise<HTMLCan
     for(const e of doc.elements.filter(e=>e.type==='stroke')){c.save();c.translate(e.x,e.y);c.rotate(e.rotation*Math.PI/180);c.globalAlpha=e.opacity;c.globalCompositeOperation=e.eraser?'destination-out':'source-over';c.lineCap=c.lineJoin='round';c.lineWidth=e.size||8;c.strokeStyle=e.color||'#434a40';c.beginPath();const pts=e.points||[];for(let n=0;n<pts.length;n+=2){const x=pts[n]*e.w,y=pts[n+1]*e.h;if(n===0)c.moveTo(x,y);else c.lineTo(x,y);}c.stroke();c.restore();}
     ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(ink,0,0);ctx.restore();ink.width=ink.height=1;
   }
+  if(!doc.cover)drawBookFold(ctx);
   return canvas;
 }
 export type ReadingView = { key:string; spread:Spread; region:'cover'|'full'|'left'|'right'; label:string };
