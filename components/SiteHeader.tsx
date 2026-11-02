@@ -1,0 +1,10 @@
+import React,{useEffect,useRef,useState} from 'react';
+import {BookOpen,CalendarDays,ChevronDown,Images,LogOut} from 'lucide-react';
+import type {User} from '../lib/model';
+export type Section='albums'|'days'|'archive';
+export function SectionNavigation({section,onSection}:{section:Section;onSection:(s:Section)=>void}){return <nav className="section-navigation" aria-label="Görünüm"><button aria-current={section==='albums'?'page':undefined} onClick={()=>onSection('albums')}><BookOpen size={16}/><span>Albümler</span></button><button aria-current={section==='days'?'page':undefined} onClick={()=>onSection('days')}><CalendarDays size={16}/><span>Günler</span></button></nav>;}
+export default function SiteHeader({user,section,onSection,onLogout}:{user:User;section:Section;onSection:(s:Section)=>void;onLogout:()=>void}){
+  const [menu,setMenu]=useState(false),host=useRef<HTMLDivElement>(null);
+  useEffect(()=>{if(!menu)return;const close=(e:PointerEvent)=>{if(!host.current?.contains(e.target as Node))setMenu(false);};const key=(e:KeyboardEvent)=>{if(e.key==='Escape')setMenu(false);};document.addEventListener('pointerdown',close);document.addEventListener('keydown',key);return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',key);};},[menu]);
+  return <header className="site-header"><button className="wordmark brand-home" aria-label="Albümlere dön" onClick={()=>onSection('albums')}>Album</button><SectionNavigation section={section} onSection={onSection}/><div className="account-wrap" ref={host}><button className="account-button" onClick={()=>setMenu(v=>!v)} aria-expanded={menu} aria-controls="account-actions"><span className="avatar-letter">{user.name[0]}</span><span>{user.name}</span><ChevronDown size={15}/></button>{menu&&<div className="account-menu" id="account-actions">{user.admin&&<button onClick={()=>{setMenu(false);onSection('archive');}}><Images size={17}/>Tüm fotoğraflar</button>}<button onClick={onLogout}><LogOut size={17}/>Çıkış yap</button></div>}</div></header>;
+}

@@ -30,12 +30,12 @@ function uploadBlob(id: string, variant: string, blob: Blob, onProgress: (n:numb
     xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300) resolve();else {let message='Fotoğraf yüklenemedi.';try{message=JSON.parse(xhr.responseText).error||message;}catch{}reject(new Error(message));}};xhr.send(blob);
   });
 }
-export type UploadJob = { file: File; id?: string; progress: number; state: 'waiting'|'working'|'done'|'error'; error?: string; variants?: Awaited<ReturnType<typeof preparePhoto>>; uploaded?: string[] };
+export type UploadJob = { file: File; id?: string; progress: number; state: 'waiting'|'working'|'done'|'error'; error?: string; variants?: Awaited<ReturnType<typeof preparePhoto>>; uploaded?: string[]; capturedOn?:string };
 export async function uploadJob(albumId: string, job: UploadJob, kind: 'photo'|'sticker', update: ()=>void) {
   try {
     job.state='working';job.error=undefined;update();
     const parts=job.variants || await preparePhoto(job.file);job.variants=parts;
-    if(!job.id) job.id=(await post(`albums/${albumId}/assets`,{kind,filename:job.file.name,mime:job.file.type,width:parts.width,height:parts.height})).id;
+    if(!job.id) job.id=(await post(`albums/${albumId}/assets`,{kind,filename:job.file.name,mime:job.file.type,width:parts.width,height:parts.height,...(job.capturedOn?{capturedOn:job.capturedOn}:{})})).id;
     const blobs: [string,Blob][]=[['original',job.file],['display',parts.display],['thumb',parts.thumb]], total=blobs.reduce((s,[,b])=>s+b.size,0);let sent=0;
     for(const [variant,blob] of blobs) {if(!job.uploaded?.includes(variant)){await uploadBlob(job.id!,variant,blob,n=>{job.progress=(sent+n)/total;update();});job.uploaded=[...(job.uploaded||[]),variant];}sent+=blob.size;}
     await post(`assets/${job.id}/complete`);job.state='done';job.progress=1;job.variants=undefined;update();

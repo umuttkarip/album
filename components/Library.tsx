@@ -5,6 +5,7 @@ import { assetUrl } from '../lib/model';
 import { albumCover } from '../lib/composition';
 import { paintDoc } from '../lib/render';
 import { PrivateImage } from './PrivateImage';
+import SiteHeader,{type Section} from './SiteHeader';
 
 function Cover({ album }: { album: Album }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -22,16 +23,13 @@ function Cover({ album }: { album: Album }) {
   </div>;
 }
 
-export default function Library({ user, albums, filter, onFilter, onNew, onAlbum, onLogout, busy }: {
-  user:User; albums:Album[]; filter:string; onFilter:(v:string)=>void; onNew:()=>void; onAlbum:(id:string)=>void; onLogout:()=>void; busy:boolean;
+export default function Library({ user, albums, filter, onFilter, onNew, onAlbum, onLogout,onSection, busy }: {
+  user:User; albums:Album[]; filter:string; onFilter:(v:string)=>void; onNew:()=>void; onAlbum:(id:string)=>void; onLogout:()=>void;onSection:(s:Section)=>void; busy:boolean;
 }) {
   const [menu,setMenu]=useState(false);
   const visible=albums.filter(a=>filter==='all'||filter==='shared'&&a.visibility==='shared'||filter==='personal'&&a.visibility==='personal'&&a.owner_id===user.id);
   return <div className="home-screen">
-    <header className="site-header"><span className="wordmark">Album</span><div className="account-wrap">
-      <button className="account-button" onClick={()=>setMenu(!menu)} aria-expanded={menu}><span className="avatar-letter">{user.name[0]}</span><span>{user.name}</span><ChevronDown size={15}/></button>
-      {menu&&<div className="account-menu"><button onClick={onLogout}><LogOut size={17}/>Çıkış yap</button></div>}
-    </div></header>
+    <SiteHeader user={user} section="albums" onSection={onSection} onLogout={onLogout}/>
     <main className="library">
       <div className="library-heading"><h1>Albümler</h1><button className="button primary" onClick={onNew}><Plus size={19}/>Yeni albüm</button></div>
       <nav className="library-tabs" aria-label="Albüm türü">{[['shared','Ortak'],['personal','Özel'],...(user.admin?[['all','Tümü']]:[])].map(([id,label])=><button key={id} aria-pressed={filter===id} className={filter===id?'active':''} onClick={()=>onFilter(id)}>{label}</button>)}</nav>

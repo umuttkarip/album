@@ -17,8 +17,8 @@ export type PageElement = {
 };
 export type PageDoc = { version: 1; paper: Paper; cover: boolean; elements: PageElement[]; autoLayout?: boolean; texture?: 'plain' | 'dots' | 'lines'; coverLayout?: 'auto' | 'single' | 'collage' | 'plain'; designId?:DesignId; surfaces?:{left:PaperSurface;right?:PaperSurface} };
 export type Spread = { id: string; album_id: string; position: number; revision: number; doc: PageDoc; lock_owner?: string | null; lock_expires?: number };
-export type Asset = { id: string; album_id: string; kind: 'photo' | 'sticker'; filename: string; mime: string; width: number; height: number; created_by: string; ready: number };
-export type Album = { id: string; title: string; description: string; visibility: 'shared' | 'personal'; owner_id: string; paper: Paper; design_id?:DesignId|null; created_at: number; updated_at: number; photo_count?: number; cover_asset_id?: string; cover_doc?: PageDoc; cover_assets?: Pick<Asset, 'id'|'width'|'height'>[] };
+export type Asset = { id: string; album_id: string; kind: 'photo' | 'sticker'; filename: string; mime: string; width: number; height: number; created_by: string; ready: number; captured_on?:string|null; created_at?:number; deleted_at?:number|null; deleted_by?:string|null };
+export type Album = { id: string; title: string; description: string; visibility: 'shared' | 'personal'; owner_id: string; paper: Paper; design_id?:DesignId|null; created_at: number; updated_at: number; deleted_at?:number|null; deleted_by?:string|null; purpose?:'album'|'days'; photo_count?: number; cover_asset_id?: string; cover_doc?: PageDoc; cover_assets?: Pick<Asset, 'id'|'width'|'height'>[] };
 export const uid = () => crypto.randomUUID();
 export const blankDoc = (paper: Paper = 'ivory', cover = false): PageDoc => ({ version: 1, paper, cover, elements: [] });
 export const canRead = (u: User, a: Pick<Album, 'visibility' | 'owner_id'>) => u.admin || a.visibility === 'shared' || a.owner_id === u.id;

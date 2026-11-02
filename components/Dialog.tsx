@@ -1,0 +1,2 @@
+import React,{useEffect,useRef} from 'react';
+export default function Dialog({children,onClose,className='',label}:{children:React.ReactNode;onClose:()=>void;className?:string;label:string}){const ref=useRef<HTMLDialogElement>(null);useEffect(()=>{const dialog=ref.current;if(dialog){dialog.showModal();dialog.scrollTop=0;}},[]);return <dialog ref={ref} className={'modal '+className} aria-label={label} onCancel={e=>{e.preventDefault();onClose();}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>{children}</dialog>;}

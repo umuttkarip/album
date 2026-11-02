@@ -3,6 +3,7 @@ import { blankDoc, canRead, canEdit, validDoc, papers, type Album, type User, ty
 import { isAutomatic } from '../lib/composition';
 import { themeDocument } from '../lib/themes';
 import { validDesign, type DesignId } from '../lib/design';
+import { DAYS_ALBUM_ID,validDay,validMonth,type LibraryPhoto } from '../lib/photo-library';
 
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 function fail(status: number, message: string): never { throw new ApiError(status,message); }
@@ -10,22 +11,23 @@ const json = (value: unknown, status = 200, headers: Record<string,string> = {})
 async function body(req: Request) { if (Number(req.headers.get('content-length')) > 2_000_000) fail(413,'İstek çok büyük.'); try { const t = await req.text(); if (t.length > 2_000_000) fail(413,'İstek çok büyük.'); return JSON.parse(t); } catch(e) { if (e instanceof ApiError) throw e; fail(400,'Geçersiz istek.'); } }
 async function album(env: AlbumEnv,id: string,u: User,write = false): Promise<Album> {
   const a = await env.DB.prepare('SELECT * FROM albums WHERE id=?').bind(id).first<Album>();
-  if (!a || !canRead(u,a)) return fail(404,'Albüm bulunamadı.');
+  if (!a || a.deleted_at || !canRead(u,a)) return fail(404,'Albüm bulunamadı.');
   if (write && !canEdit(u,a)) fail(403,'Düzenleme iznin yok.');
   return a;
 }
 type Row = {id:string; album_id:string; position:number; doc:string; revision:number; lock_owner:string|null; lock_token:string|null; lock_expires:number};
-const publicSpread = (r: Row) => ({id:r.id,album_id:r.album_id,position:r.position,doc:JSON.parse(r.doc),revision:r.revision,lock_owner:r.lock_expires > Date.now() ? r.lock_owner : null,lock_expires:r.lock_expires});
+const visibleDoc=(doc:PageDoc,ids:Set<string>)=>({...doc,elements:doc.elements.filter(e=>!e.assetId||ids.has(e.assetId))});
+const publicSpread = (r: Row,ids?:Set<string>) => ({id:r.id,album_id:r.album_id,position:r.position,doc:ids?visibleDoc(JSON.parse(r.doc),ids):JSON.parse(r.doc),revision:r.revision,lock_owner:r.lock_expires > Date.now() ? r.lock_owner : null,lock_expires:r.lock_expires});
 async function checkDocAssets(env: AlbumEnv,d: PageDoc,aid: string) {
   const ids = [...new Set(d.elements.flatMap(e => e.assetId ? [e.assetId] : []))];
   if (!ids.length) return;
-  for(let start=0;start<ids.length;start+=80){const group=ids.slice(start,start+80);const result = await env.DB.prepare(`SELECT id FROM assets WHERE album_id=? AND ready=1 AND id IN (${group.map(()=>'?').join(',')})`).bind(aid,...group).all();
+  for(let start=0;start<ids.length;start+=80){const group=ids.slice(start,start+80);const result = await env.DB.prepare(`SELECT id FROM assets WHERE album_id=? AND ready=1 AND deleted_at IS NULL AND id IN (${group.map(()=>'?').join(',')})`).bind(aid,...group).all();
   if (result.results.length !== group.length) fail(400,'Sayfadaki fotoğraflardan biri bu albüme ait değil veya henüz yüklenmedi.');}
 }
 async function ensureAutomaticPages(env:AlbumEnv,aid:string,paper:PageDoc['paper'],designId?:DesignId|null){
   const rows=await env.DB.prepare('SELECT doc FROM spreads WHERE album_id=? AND position>=0').bind(aid).all<{doc:string}>();
   if(!rows.results.length||rows.results.some(r=>!isAutomatic(JSON.parse(r.doc))))return;
-  const count=await env.DB.prepare("SELECT COUNT(*) AS n FROM assets WHERE album_id=? AND ready=1 AND kind='photo'").bind(aid).first<{n:number}>();
+  const count=await env.DB.prepare("SELECT COUNT(*) AS n FROM assets WHERE album_id=? AND ready=1 AND deleted_at IS NULL AND kind='photo'").bind(aid).first<{n:number}>();
   const missing=Math.max(0,Math.ceil((count?.n||0)/4)-rows.results.length);if(!missing)return;
   const statements=Array.from({length:missing},()=>env.DB.prepare(`INSERT INTO spreads(id,album_id,position,doc,updated_at) SELECT ?,?,COALESCE(MAX(position),-1)+1,?,? FROM spreads WHERE album_id=? HAVING ?>(SELECT COUNT(*)*4 FROM spreads WHERE album_id=? AND position>=0)`).bind(crypto.randomUUID(),aid,JSON.stringify(designId?themeDocument(designId):{...blankDoc(paper),autoLayout:true}),Date.now(),aid,count!.n,aid));
   await env.DB.batch(statements);
@@ -56,10 +58,37 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
       if (path[1] === 'me') return json({user:u});
       if (path[1] === 'logout' && method === 'POST') { await env.DB.prepare('DELETE FROM sessions WHERE token_hash=?').bind(hashToken(sessionToken(req))).run(); return json({ok:true},200,{'Set-Cookie':expiredCookie(req)}); }
     }
+    if(path[0]==='photos'&&path.length===1&&method==='GET'){
+      if(!u.admin)fail(403,'Bu alan yalnız Umut için açık.');
+      const status=url.searchParams.get('status')||'all';if(!['all','active','deleted'].includes(status))fail(400,'Filtreyi kontrol et.');
+      const after=url.searchParams.get('after');let cursor:{at:number;id:string}|null=null;
+      if(after){try{cursor=JSON.parse(after);if(!cursor||!Number.isSafeInteger(cursor.at)||typeof cursor.id!=='string'||cursor.id.length>100)throw new Error();}catch{fail(400,'Sayfa konumunu kontrol et.');}}
+      const limit=60,where=["p.kind='photo'","p.ready=1"],values:(string|number)[]=[];
+      if(status==='active')where.push('p.deleted_at IS NULL AND a.deleted_at IS NULL');
+      if(status==='deleted')where.push('(p.deleted_at IS NOT NULL OR a.deleted_at IS NOT NULL)');
+      if(cursor){where.push('(p.created_at<? OR (p.created_at=? AND p.id<?))');values.push(cursor.at,cursor.at,cursor.id);}
+      const rows=await env.DB.prepare(`SELECT p.*,a.title album_title,a.deleted_at album_deleted_at FROM assets p JOIN albums a ON a.id=p.album_id WHERE ${where.join(' AND ')} ORDER BY p.created_at DESC,p.id DESC LIMIT ?`).bind(...values,limit+1).all<LibraryPhoto>();
+      const photos=rows.results.slice(0,limit),last=photos.at(-1);return json({photos,next:rows.results.length>limit&&last?JSON.stringify({at:last.created_at,id:last.id}):null});
+    }
+    if(path[0]==='days'){
+      if(path.length===1&&method==='GET'){
+        let month=url.searchParams.get('month');if(month!==null&&!validMonth(month))fail(400,'Ayı kontrol et.');
+        if(month===null){const latest=await env.DB.prepare("SELECT MAX(p.captured_on) day FROM assets p JOIN albums a ON a.id=p.album_id WHERE a.visibility='shared' AND a.deleted_at IS NULL AND p.deleted_at IS NULL AND p.ready=1 AND p.kind='photo'").first<{day:string|null}>();month=latest?.day?.slice(0,7)||new Date().toISOString().slice(0,7);}
+        const [photos,settings]=await Promise.all([
+          env.DB.prepare("SELECT p.*,a.title album_title,a.deleted_at album_deleted_at FROM assets p JOIN albums a ON a.id=p.album_id WHERE a.visibility='shared' AND a.deleted_at IS NULL AND p.deleted_at IS NULL AND p.ready=1 AND p.kind='photo' AND p.captured_on>=? AND p.captured_on<? ORDER BY p.captured_on,p.created_at,p.id").bind(month+'-01',month+'-32').all<LibraryPhoto>(),
+          env.DB.prepare("SELECT s.revision,(SELECT p.id FROM assets p JOIN albums a ON a.id=p.album_id WHERE p.id=s.desktop_asset_id AND p.deleted_at IS NULL AND p.ready=1 AND a.deleted_at IS NULL AND a.visibility='shared') desktop_asset_id,(SELECT p.id FROM assets p JOIN albums a ON a.id=p.album_id WHERE p.id=s.mobile_asset_id AND p.deleted_at IS NULL AND p.ready=1 AND a.deleted_at IS NULL AND a.visibility='shared') mobile_asset_id FROM day_settings s WHERE id=1").first(),
+        ]);return json({albumId:DAYS_ALBUM_ID,month,photos:photos.results,settings});
+      }
+      if(path[1]==='background'&&method==='PATCH'){
+        const b=await body(req);if(!Number.isSafeInteger(b.revision))fail(400,'Arka plan sürümünü kontrol et.');
+        for(const id of [b.desktop_asset_id,b.mobile_asset_id]){if(id===null)continue;if(typeof id!=='string')fail(400,'Arka plan fotoğrafını seç.');const p=await env.DB.prepare("SELECT p.id FROM assets p JOIN albums a ON a.id=p.album_id WHERE p.id=? AND p.kind='photo' AND p.ready=1 AND p.deleted_at IS NULL AND a.deleted_at IS NULL AND a.visibility='shared'").bind(id).first();if(!p)fail(400,'Ortak bir fotoğraf seç.');}
+        const r=await env.DB.prepare('UPDATE day_settings SET desktop_asset_id=?,mobile_asset_id=?,revision=revision+1 WHERE id=1 AND revision=? RETURNING revision').bind(b.desktop_asset_id,b.mobile_asset_id,b.revision).first();if(!r)fail(409,'Arka plan değişti. Yenileyip tekrar dene.');return json(r);
+      }
+    }
     if (path[0] === 'albums' && path.length === 1) {
       if (method === 'GET') {
-        const r = await env.DB.prepare(`SELECT a.*, (SELECT COUNT(*) FROM assets t WHERE t.album_id=a.id AND t.ready=1 AND t.kind='photo') photo_count, (SELECT doc FROM spreads s WHERE s.album_id=a.id AND s.position=-1 LIMIT 1) cover_json, (SELECT json_group_array(json_object('id',p.id,'width',p.width,'height',p.height)) FROM (SELECT id,width,height FROM assets WHERE album_id=a.id AND ready=1 AND kind='photo' ORDER BY created_at,id LIMIT 3) p) cover_assets_json FROM albums a WHERE (?=1 OR a.visibility='shared' OR a.owner_id=?) ORDER BY a.updated_at DESC`).bind(u.admin?1:0,u.id).all<Album & {cover_json:string;cover_assets_json:string}>();
-        return json({albums:r.results.map(({cover_json,cover_assets_json,...a}) => ({...a,cover_assets:JSON.parse(cover_assets_json||'[]'),cover_doc:cover_json?JSON.parse(cover_json):blankDoc(a.paper,true)}))});
+        const r = await env.DB.prepare(`SELECT a.*, (SELECT COUNT(*) FROM assets t WHERE t.album_id=a.id AND t.ready=1 AND t.deleted_at IS NULL AND t.kind='photo') photo_count, (SELECT doc FROM spreads s WHERE s.album_id=a.id AND s.position=-1 LIMIT 1) cover_json, (SELECT json_group_array(id) FROM assets WHERE album_id=a.id AND ready=1 AND deleted_at IS NULL) active_ids_json, (SELECT json_group_array(json_object('id',p.id,'width',p.width,'height',p.height)) FROM (SELECT id,width,height FROM assets WHERE album_id=a.id AND ready=1 AND deleted_at IS NULL AND kind='photo' ORDER BY created_at,id LIMIT 3) p) cover_assets_json FROM albums a WHERE a.deleted_at IS NULL AND a.purpose='album' AND (?=1 OR a.visibility='shared' OR a.owner_id=?) ORDER BY a.updated_at DESC`).bind(u.admin?1:0,u.id).all<Album & {cover_json:string;cover_assets_json:string;active_ids_json:string}>();
+        return json({albums:r.results.map(({cover_json,cover_assets_json,active_ids_json,...a}) => ({...a,cover_assets:JSON.parse(cover_assets_json||'[]'),cover_doc:visibleDoc(cover_json?JSON.parse(cover_json):blankDoc(a.paper,true),new Set(JSON.parse(active_ids_json||'[]')))}))});
       }
       if (method === 'POST') {
         const b = await body(req), title = String(b.title || '').trim(); if (!title || title.length > 100 || !['shared','personal'].includes(b.visibility)) fail(400,'Albüm adı ve türünü kontrol et.');
@@ -76,8 +105,8 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
     if (path[0] === 'albums' && path[1]) {
       const a = await album(env,path[1],u,method!=='GET');
       if (path.length === 2 && method === 'GET') {
-        const [s,assets] = await Promise.all([env.DB.prepare('SELECT * FROM spreads WHERE album_id=? ORDER BY position').bind(a.id).all<Row>(),env.DB.prepare('SELECT id,album_id,kind,filename,mime,width,height,created_by,ready FROM assets WHERE album_id=? AND ready=1 ORDER BY created_at,id').bind(a.id).all()]);
-        return json({album:a,spreads:s.results.map(publicSpread),assets:assets.results,user:u});
+        const [s,assets] = await Promise.all([env.DB.prepare('SELECT * FROM spreads WHERE album_id=? ORDER BY position').bind(a.id).all<Row>(),env.DB.prepare('SELECT id,album_id,kind,filename,mime,width,height,created_by,created_at,captured_on,ready FROM assets WHERE album_id=? AND ready=1 AND deleted_at IS NULL ORDER BY created_at,id').bind(a.id).all<{id:string}>()]);
+        const ids=new Set(assets.results.map(p=>p.id));return json({album:a,spreads:s.results.map(r=>publicSpread(r,ids)),assets:assets.results,user:u});
       }
       if (path.length === 2 && method === 'PATCH') {
         const b = await body(req), title=String(b.title||'').trim(), description=String(b.description||''); if(!title || title.length>100 || description.length>2000) fail(400,'Albüm bilgilerini kontrol et.');
@@ -90,11 +119,10 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         if(a.owner_id!==u.id)fail(403,'Albümü yalnız sahibi kaldırabilir.');
         const b=await body(req);if(b.confirmTitle!==a.title)fail(400,'Albüm adını doğrula.');
         if(b.updatedAt!==a.updated_at)fail(409,'Albüm değişti. Kaldırmadan önce yeniden kontrol et.');
-        const assets=await env.DB.prepare('SELECT id FROM assets WHERE album_id=?').bind(a.id).all<{id:string}>();
+        const assets=await env.DB.prepare('SELECT id FROM assets WHERE album_id=? AND deleted_at IS NULL').bind(a.id).all<{id:string}>();
         if(!Array.isArray(b.assetIds)||b.assetIds.length!==assets.results.length||assets.results.some(p=>!b.assetIds.includes(p.id)))fail(409,'Albümdeki fotoğraflar değişti. Yeniden kontrol et.');
-        const keys=assets.results.flatMap(p=>['original','display','thumb'].map(v=>p.id+'/'+v));
-        for(let start=0;start<keys.length;start+=100)await env.BUCKET.delete(keys.slice(start,start+100));
-        await env.DB.batch([env.DB.prepare('DELETE FROM assets WHERE album_id=?').bind(a.id),env.DB.prepare('DELETE FROM spreads WHERE album_id=?').bind(a.id),env.DB.prepare('DELETE FROM albums WHERE id=?').bind(a.id)]);
+        if(a.purpose==='days')fail(400,'Günler alanı kaldırılamaz.');
+        const now=Date.now();const r=await env.DB.prepare('UPDATE albums SET deleted_at=?,deleted_by=?,updated_at=? WHERE id=? AND updated_at=? AND deleted_at IS NULL RETURNING id').bind(now,u.id,now,a.id,a.updated_at).first();if(!r)fail(409,'Albüm değişti. Yeniden kontrol et.');
         return json({ok:true});
       }
       if (path[2] === 'spreads' && method === 'POST') {
@@ -106,13 +134,14 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
       if (path[2] === 'assets' && method === 'POST') {
         const b=await body(req); if(!['image/jpeg','image/png','image/webp'].includes(b.mime) || !['photo','sticker'].includes(b.kind) || !Number.isInteger(b.width) || !Number.isInteger(b.height) || b.width<1 || b.height<1 || b.width>40000 || b.height>40000) fail(400,'Desteklenmeyen fotoğraf. JPEG, PNG veya WebP seç.');
         if (b.kind==='sticker' && !['image/png','image/webp'].includes(b.mime)) fail(400,'Çıkartma için PNG veya WebP seç.');
+        if(b.capturedOn!==undefined&&!validDay(b.capturedOn))fail(400,'Fotoğraf tarihini kontrol et.');if(a.purpose==='days'&&(b.kind!=='photo'||!validDay(b.capturedOn)))fail(400,'Fotoğraf için bir gün seç.');
         const id=crypto.randomUUID(), filename=String(b.filename||'fotoğraf').slice(0,200);
-        await env.DB.prepare('INSERT INTO assets(id,album_id,kind,filename,mime,width,height,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)').bind(id,a.id,b.kind,filename,b.mime,b.width,b.height,u.id,Date.now()).run();return json({id},201);
+        await env.DB.prepare('INSERT INTO assets(id,album_id,kind,filename,mime,width,height,created_by,created_at,captured_on) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(id,a.id,b.kind,filename,b.mime,b.width,b.height,u.id,Date.now(),b.capturedOn||null).run();return json({id},201);
       }
     }
     if (path[0] === 'spreads' && path[1]) {
       const s=await env.DB.prepare('SELECT * FROM spreads WHERE id=?').bind(path[1]).first<Row>(); if(!s) fail(404,'Sayfa bulunamadı.'); await album(env,s.album_id,u,method!=='GET');
-      if (method === 'GET') return json({spread:publicSpread(s)});
+      if (method === 'GET'){const active=await env.DB.prepare('SELECT id FROM assets WHERE album_id=? AND ready=1 AND deleted_at IS NULL').bind(s.album_id).all<{id:string}>();return json({spread:publicSpread(s,new Set(active.results.map(p=>p.id)))});}
       const b=await body(req), now=Date.now();
       if (path[2] === 'lock' && method === 'POST') {
         const token=typeof b.token==='string' ? b.token : crypto.randomUUID();
@@ -129,7 +158,17 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
       }
     }
     if (path[0] === 'assets' && path[1]) {
-      const a=await env.DB.prepare('SELECT * FROM assets WHERE id=?').bind(path[1]).first<{id:string;album_id:string;mime:string;filename:string;kind:string;ready:number;uploaded:number}>();if(!a) fail(404,'Fotoğraf bulunamadı.'); await album(env,a.album_id,u,method!=='GET');
+      const a=await env.DB.prepare('SELECT * FROM assets WHERE id=?').bind(path[1]).first<{id:string;album_id:string;mime:string;filename:string;kind:string;ready:number;uploaded:number;deleted_at:number|null}>();if(!a) fail(404,'Fotoğraf bulunamadı.');
+      if(method==='GET'&&u.admin){const parent=await env.DB.prepare('SELECT id FROM albums WHERE id=?').bind(a.album_id).first();if(!parent)fail(404,'Albüm bulunamadı.');}else{await album(env,a.album_id,u,method!=='GET');if(a.deleted_at)fail(404,'Fotoğraf bulunamadı.');}
+      if(path.length===2&&method==='DELETE'){
+        const b=await body(req);if(b.confirmFilename!==a.filename)fail(400,'Fotoğraf adını doğrula.');if(!a.ready)fail(409,'Fotoğraf henüz yüklenmedi.');
+        await env.DB.batch([env.DB.prepare('UPDATE assets SET deleted_at=?,deleted_by=? WHERE id=? AND deleted_at IS NULL').bind(Date.now(),u.id,a.id),env.DB.prepare('UPDATE albums SET updated_at=? WHERE id=?').bind(Date.now(),a.album_id)]);return json({ok:true});
+      }
+      if(path[2]==='day'&&method==='PATCH'){
+        const b=await body(req);if(b.day!==null&&!validDay(b.day))fail(400,'Fotoğraf tarihini kontrol et.');if(a.kind!=='photo'||!a.ready)fail(400,'Kaydedilmiş bir fotoğraf seç.');
+        const parent=await album(env,a.album_id,u,true);if(parent.visibility!=='shared')fail(400,'Günler için ortak bir fotoğraf seç.');
+        await env.DB.prepare('UPDATE assets SET captured_on=? WHERE id=? AND deleted_at IS NULL').bind(b.day,a.id).run();return json({ok:true});
+      }
       const variant=path[2];if(!['original','display','thumb','complete'].includes(variant)) fail(404,'Dosya bulunamadı.');
       if (method === 'PUT' && variant !== 'complete') {
         if(a.ready) fail(409,'Bu fotoğraf zaten kaydedildi.');
