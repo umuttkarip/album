@@ -1,5 +1,6 @@
 import { currentUser, createSession, verifyPassword, sessionToken, hashToken, expiredCookie, type AlbumEnv } from './auth';
-import { blankDoc, newElement, canRead, canEdit, validDoc, papers, type Album, type User, type PageDoc } from '../lib/model';
+import { blankDoc, canRead, canEdit, validDoc, papers, type Album, type User, type PageDoc } from '../lib/model';
+import { isAutomatic } from '../lib/composition';
 
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 function fail(status: number, message: string): never { throw new ApiError(status,message); }
@@ -8,7 +9,7 @@ async function body(req: Request) { if (Number(req.headers.get('content-length')
 async function album(env: AlbumEnv,id: string,u: User,write = false): Promise<Album> {
   const a = await env.DB.prepare('SELECT * FROM albums WHERE id=?').bind(id).first<Album>();
   if (!a || !canRead(u,a)) return fail(404,'Albüm bulunamadı.');
-  if (write && !canEdit(u,a)) fail(403,'Bu albümü yalnızca sahibi düzenleyebilir.');
+  if (write && !canEdit(u,a)) fail(403,'Düzenleme iznin yok.');
   return a;
 }
 type Row = {id:string; album_id:string; position:number; doc:string; revision:number; lock_owner:string|null; lock_token:string|null; lock_expires:number};
@@ -18,6 +19,14 @@ async function checkDocAssets(env: AlbumEnv,d: PageDoc,aid: string) {
   if (!ids.length) return;
   for(let start=0;start<ids.length;start+=80){const group=ids.slice(start,start+80);const result = await env.DB.prepare(`SELECT id FROM assets WHERE album_id=? AND ready=1 AND id IN (${group.map(()=>'?').join(',')})`).bind(aid,...group).all();
   if (result.results.length !== group.length) fail(400,'Sayfadaki fotoğraflardan biri bu albüme ait değil veya henüz yüklenmedi.');}
+}
+async function ensureAutomaticPages(env:AlbumEnv,aid:string,paper:PageDoc['paper']){
+  const rows=await env.DB.prepare('SELECT doc FROM spreads WHERE album_id=? AND position>=0').bind(aid).all<{doc:string}>();
+  if(!rows.results.length||rows.results.some(r=>!isAutomatic(JSON.parse(r.doc))))return;
+  const count=await env.DB.prepare("SELECT COUNT(*) AS n FROM assets WHERE album_id=? AND ready=1 AND kind='photo'").bind(aid).first<{n:number}>();
+  const missing=Math.max(0,Math.ceil((count?.n||0)/4)-rows.results.length);if(!missing)return;
+  const statements=Array.from({length:missing},()=>env.DB.prepare(`INSERT INTO spreads(id,album_id,position,doc,updated_at) SELECT ?,?,COALESCE(MAX(position),-1)+1,?,? FROM spreads WHERE album_id=? HAVING ?>(SELECT COUNT(*)*4 FROM spreads WHERE album_id=? AND position>=0)`).bind(crypto.randomUUID(),aid,JSON.stringify({...blankDoc(paper),autoLayout:true}),Date.now(),aid,count!.n,aid));
+  await env.DB.batch(statements);
 }
 export async function api(req: Request, env: AlbumEnv): Promise<Response> {
   try {
@@ -47,24 +56,24 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
     }
     if (path[0] === 'albums' && path.length === 1) {
       if (method === 'GET') {
-        const r = await env.DB.prepare(`SELECT a.*, (SELECT COUNT(*) FROM assets t WHERE t.album_id=a.id AND t.ready=1 AND t.kind='photo') photo_count, (SELECT doc FROM spreads s WHERE s.album_id=a.id AND s.position=-1 LIMIT 1) cover_json FROM albums a WHERE (?=1 OR a.visibility='shared' OR a.owner_id=?) ORDER BY a.updated_at DESC`).bind(u.admin?1:0,u.id).all<Album & {cover_json:string}>();
-        return json({albums:r.results.map(({cover_json,...a}) => ({...a,cover_doc:cover_json?JSON.parse(cover_json):blankDoc(a.paper,true)}))});
+        const r = await env.DB.prepare(`SELECT a.*, (SELECT COUNT(*) FROM assets t WHERE t.album_id=a.id AND t.ready=1 AND t.kind='photo') photo_count, (SELECT doc FROM spreads s WHERE s.album_id=a.id AND s.position=-1 LIMIT 1) cover_json, (SELECT json_group_array(json_object('id',p.id,'width',p.width,'height',p.height)) FROM (SELECT id,width,height FROM assets WHERE album_id=a.id AND ready=1 AND kind='photo' ORDER BY created_at,id LIMIT 3) p) cover_assets_json FROM albums a WHERE (?=1 OR a.visibility='shared' OR a.owner_id=?) ORDER BY a.updated_at DESC`).bind(u.admin?1:0,u.id).all<Album & {cover_json:string;cover_assets_json:string}>();
+        return json({albums:r.results.map(({cover_json,cover_assets_json,...a}) => ({...a,cover_assets:JSON.parse(cover_assets_json||'[]'),cover_doc:cover_json?JSON.parse(cover_json):blankDoc(a.paper,true)}))});
       }
       if (method === 'POST') {
         const b = await body(req), title = String(b.title || '').trim(); if (!title || title.length > 100 || !['shared','personal'].includes(b.visibility)) fail(400,'Albüm adı ve türünü kontrol et.');
         const id=crypto.randomUUID(), now=Date.now(), paper=b.paper in papers?b.paper:'ivory';
-        const cover=blankDoc('charcoal',true);cover.elements=[newElement('text',{text:title,x:90,y:870,w:820,h:280,size:title.length>50?36:title.length>24?48:64,font:'Commissioner',color:'#eef0e8',align:'center'})];
+        const cover={...blankDoc('sage',true),autoLayout:true};
         await env.DB.batch([
           env.DB.prepare('INSERT INTO albums(id,title,visibility,owner_id,paper,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind(id,title,b.visibility,u.id,paper,now,now),
           env.DB.prepare('INSERT INTO spreads(id,album_id,position,doc,updated_at) VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),id,-1,JSON.stringify(cover),now),
-          env.DB.prepare('INSERT INTO spreads(id,album_id,position,doc,updated_at) VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),id,0,JSON.stringify(blankDoc(paper)),now),
+          env.DB.prepare('INSERT INTO spreads(id,album_id,position,doc,updated_at) VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),id,0,JSON.stringify({...blankDoc(paper),autoLayout:true}),now),
         ]); return json({id},201);
       }
     }
     if (path[0] === 'albums' && path[1]) {
       const a = await album(env,path[1],u,method!=='GET');
       if (path.length === 2 && method === 'GET') {
-        const [s,assets] = await Promise.all([env.DB.prepare('SELECT * FROM spreads WHERE album_id=? ORDER BY position').bind(a.id).all<Row>(),env.DB.prepare('SELECT id,album_id,kind,filename,mime,width,height,created_by,ready FROM assets WHERE album_id=? AND ready=1 ORDER BY created_at').bind(a.id).all()]);
+        const [s,assets] = await Promise.all([env.DB.prepare('SELECT * FROM spreads WHERE album_id=? ORDER BY position').bind(a.id).all<Row>(),env.DB.prepare('SELECT id,album_id,kind,filename,mime,width,height,created_by,ready FROM assets WHERE album_id=? AND ready=1 ORDER BY created_at,id').bind(a.id).all()]);
         return json({album:a,spreads:s.results.map(publicSpread),assets:assets.results,user:u});
       }
       if (path.length === 2 && method === 'PATCH') {
@@ -72,7 +81,7 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         await env.DB.prepare('UPDATE albums SET title=?,description=?,updated_at=? WHERE id=?').bind(title,description,Date.now(),a.id).run(); return json({ok:true});
       }
       if (path[2] === 'spreads' && method === 'POST') {
-        const b=await body(req), d=b.doc || blankDoc(a.paper); if(!validDoc(d) || d.cover) fail(400,'Geçersiz sayfa.'); await checkDocAssets(env,d,a.id);
+        const b=await body(req), d=b.doc || {...blankDoc(a.paper),autoLayout:false}; if(!validDoc(d) || d.cover) fail(400,'Geçersiz sayfa.'); await checkDocAssets(env,d,a.id);
         const id=crypto.randomUUID();
         await env.DB.prepare('INSERT INTO spreads(id,album_id,position,doc,updated_at) SELECT ?,?,COALESCE(MAX(position),-1)+1,?,? FROM spreads WHERE album_id=?').bind(id,a.id,JSON.stringify(d),Date.now(),a.id).run();
         const r=await env.DB.prepare('SELECT * FROM spreads WHERE id=?').bind(id).first<Row>(); return json({spread:publicSpread(r!)},201);
@@ -103,7 +112,7 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
       }
     }
     if (path[0] === 'assets' && path[1]) {
-      const a=await env.DB.prepare('SELECT * FROM assets WHERE id=?').bind(path[1]).first<{id:string;album_id:string;mime:string;filename:string;ready:number;uploaded:number}>();if(!a) fail(404,'Fotoğraf bulunamadı.'); await album(env,a.album_id,u,method!=='GET');
+      const a=await env.DB.prepare('SELECT * FROM assets WHERE id=?').bind(path[1]).first<{id:string;album_id:string;mime:string;filename:string;kind:string;ready:number;uploaded:number}>();if(!a) fail(404,'Fotoğraf bulunamadı.'); await album(env,a.album_id,u,method!=='GET');
       const variant=path[2];if(!['original','display','thumb','complete'].includes(variant)) fail(404,'Dosya bulunamadı.');
       if (method === 'PUT' && variant !== 'complete') {
         if(a.ready) fail(409,'Bu fotoğraf zaten kaydedildi.');
@@ -123,7 +132,7 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         await env.DB.prepare('UPDATE assets SET uploaded=uploaded|? WHERE id=?').bind(mask,a.id).run();return json({ok:true});
       }
       if (method === 'POST' && variant==='complete') {
-        if(a.uploaded!==7) fail(409,'Fotoğrafın bütün kopyaları henüz yüklenmedi.'); await env.DB.prepare('UPDATE assets SET ready=1 WHERE id=?').bind(a.id).run();return json({ok:true});
+        if(a.uploaded!==7) fail(409,'Fotoğrafın bütün kopyaları henüz yüklenmedi.'); await env.DB.prepare('UPDATE assets SET ready=1 WHERE id=?').bind(a.id).run();if(a.kind==='photo'){const parent=await album(env,a.album_id,u);await ensureAutomaticPages(env,parent.id,parent.paper);}return json({ok:true});
       }
       if (method === 'GET' && variant!=='complete' && a.ready) {
         const object=await env.BUCKET.get(`${a.id}/${variant}`);if(!object) fail(404,'Dosya bulunamadı.');

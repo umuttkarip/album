@@ -7,15 +7,16 @@ export type Turn = { id:number; from:HTMLCanvasElement; to:HTMLCanvasElement; di
 const H=1.25;
 function texture(source:HTMLCanvasElement,part:'left'|'right'|'full'='full') {
   const c=document.createElement('canvas');const half=part!=='full'&&source.width/source.height>1;c.width=half?source.width/2:source.width;c.height=source.height;
-  c.getContext('2d')!.drawImage(source,half&&part==='right'?c.width:0,0,c.width,c.height,0,0,c.width,c.height);
+  const ctx=c.getContext('2d')!,r=Math.min(c.width,c.height)*.024;ctx.beginPath();ctx.roundRect(0,0,c.width,c.height,half?(part==='left'?[r,0,0,r]:[0,r,r,0]):r);ctx.clip();ctx.drawImage(source,half&&part==='right'?c.width:0,0,c.width,c.height,0,0,c.width,c.height);
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=2;t.generateMipmaps=true;return t;
 }
 const vertex=`varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`;
 const fragment=`uniform sampler2D frontMap; uniform sampler2D backMap; uniform float progress; varying vec2 vUv;
- void main(){vec2 uv=vUv;if(!gl_FrontFacing)uv.x=1.0-uv.x;vec4 ink=gl_FrontFacing?texture2D(frontMap,uv):texture2D(backMap,uv);float shade=1.0-sin(progress*3.14159265)*(.055+.12*pow(1.0-vUv.x,2.0));gl_FragColor=vec4(ink.rgb*shade,1.0);
+ void main(){vec2 uv=vUv;if(!gl_FrontFacing)uv.x=1.0-uv.x;vec4 ink=gl_FrontFacing?texture2D(frontMap,uv):texture2D(backMap,uv);if(ink.a<.01)discard;float shade=1.0-sin(progress*3.14159265)*(.055+.12*pow(1.0-vUv.x,2.0));gl_FragColor=vec4(ink.rgb*shade,ink.a);
  #include <colorspace_fragment>
  }`;
-function Sheet({map,x,z=0,width=1,opacity=1}:{map:THREE.Texture;x:number;z?:number;width?:number;opacity?:number}) {return <mesh position={[x,0,z]}><planeGeometry args={[width,H]}/><meshBasicMaterial map={map} toneMapped={false} transparent={opacity<1} opacity={opacity}/></mesh>;}
+function Sheet({map,x,z=0,width=1,opacity=1}:{map:THREE.Texture;x:number;z?:number;width?:number;opacity?:number}) {return <mesh position={[x,0,z]}><planeGeometry args={[width,H]}/><meshBasicMaterial map={map} toneMapped={false} transparent alphaTest={.01} opacity={opacity}/></mesh>;}
+function Fold({spanning}:{spanning:boolean}){return <mesh position={[0,0,.003]}><planeGeometry args={[.075,H]}/><shaderMaterial transparent depthWrite={false} vertexShader={vertex} uniforms={{strength:{value:spanning?.065:.14}}} fragmentShader={`uniform float strength; varying vec2 vUv; void main(){float edge=1.0-abs(vUv.x-.5)*2.0;gl_FragColor=vec4(.29,.28,.23,pow(edge,2.0)*strength);}`}/></mesh>;}
 function Scene({canvas,book,cover,turn,onDone,onLost,spanning}:{canvas:HTMLCanvasElement;book:boolean;cover:boolean;turn:Turn|null;onDone:(cancelled:boolean)=>void;onLost:()=>void;spanning:boolean}) {
   const {camera,size,invalidate,gl}=useThree();
   const turning=useRef<THREE.Mesh>(null),shadow=useRef<THREE.Mesh>(null),leftUnder=useRef<THREE.Mesh>(null),done=useRef(-1);
@@ -31,7 +32,7 @@ function Scene({canvas,book,cover,turn,onDone,onLost,spanning}:{canvas:HTMLCanva
   },[turn?.direction]);
   const original=useMemo(()=>new Float32Array(geom.attributes.position.array),[geom]);
   useEffect(()=>()=>geom.dispose(),[geom]);
-  const material=useMemo(()=>new THREE.ShaderMaterial({uniforms:{frontMap:{value:turn?.direction===-1?maps.cl:maps.cr},backMap:{value:turn?.direction===-1?maps.nr:maps.nl},progress:{value:0}},vertexShader:vertex,fragmentShader:fragment,side:THREE.DoubleSide,toneMapped:false}),[maps,turn?.direction]);
+  const material=useMemo(()=>new THREE.ShaderMaterial({uniforms:{frontMap:{value:turn?.direction===-1?maps.cl:maps.cr},backMap:{value:turn?.direction===-1?maps.nr:maps.nl},progress:{value:0}},vertexShader:vertex,fragmentShader:fragment,side:THREE.DoubleSide,transparent:true,toneMapped:false}),[maps,turn?.direction]);
   useEffect(()=>()=>material.dispose(),[material]);
   useEffect(()=>{const lost=(e:Event)=>{e.preventDefault();onLost();};gl.domElement.addEventListener('webglcontextlost',lost);return()=>gl.domElement.removeEventListener('webglcontextlost',lost);},[gl,onLost]);
   useEffect(()=>{invalidate();},[turn,size,invalidate]);
@@ -47,10 +48,9 @@ function Scene({canvas,book,cover,turn,onDone,onLost,spanning}:{canvas:HTMLCanva
       if(shadow.current)(shadow.current.material as THREE.MeshBasicMaterial).opacity=Math.sin(Math.PI*p)*.18;
     }
   });
-  const backingColor='#d9d8ce',baseX=book?(cover?.5:0):0,baseW=book&&!cover?2:1;
+  const backingColor='#e9e4d7',baseX=book?(cover?.5:0):0,baseW=book&&!cover?2:1;
   if(!turn)return <>
-    {[.012,.022,.032].map((n,i)=><mesh key={n} position={[baseX+.003*i,-n/3,-n]}><planeGeometry args={[baseW,H]}/><meshBasicMaterial color={backingColor}/></mesh>)}
-    {book&&!cover?<><Sheet map={maps.cl} x={-.5}/><Sheet map={maps.cr} x={.5}/><mesh position={[0,0,.003]}><planeGeometry args={[.025,H]}/><meshBasicMaterial color="#26332c" transparent opacity={spanning?.07:.12}/></mesh></>:<Sheet map={maps.cr} x={baseX}/>}
+    {book&&!cover?<><Sheet map={maps.cl} x={-.5}/><Sheet map={maps.cr} x={.5}/><Fold spanning={spanning}/></>:<Sheet map={maps.cr} x={baseX}/>}
   </>;
   return <>
     {book?<>

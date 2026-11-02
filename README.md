@@ -23,3 +23,7 @@ Kişisel albümleri sahibi ve yönetici görebilir; yalnız sahibi düzenler. Or
 ## Yayın
 
 `main` dalına gönderim `.github/workflows/pages.yml` ile test, derleme ve GitHub Pages yayınını başlatır. Sunucu adresi sır değildir; hesap hashleri Cloudflare secrets, fotoğraflar özel R2, belgeler D1 içinde kalır. `web`, `.local`, `.dev.vars`, `.env` ve yerel veritabanları Git'e eklenmez.
+
+## Kapak ve sayfa düzeni
+
+Boş veya otomatik sayfalar, yüklenen fotoğraflardan düzen üretir; özel düzenler korunur. Kapak 0/1/3 fotoğrafa göre renkli, tek fotoğraflı veya kolaj olur. Tamamen otomatik albüm yüklemelerle her dört fotoğrafta bir sayfa çifti ekler. Dokuz şablon gerçek fotoğraflarla önizlenir; dört font, kalın/italik metin, not yazısı, altı kâğıt ve üç doku seçilebilir. Bütün alanlar aynı sürümlü belgeye kaydolur. CI yayın öncesinde font yollarını, gerçek WOFF2 dosyalarını ve özel API'nin oturumsuz erişimi reddetmesini denetler.

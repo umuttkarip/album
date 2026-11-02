@@ -9,24 +9,31 @@ export function imageFor(src: string): Promise<HTMLImageElement> {
 }
 export function clearImages(){cache.clear();}
 export function elementSrc(e: PageElement) {return e.assetId?assetUrl(e.assetId):stickers.find(s=>s.id===e.stickerId)?.src||'';}
+export function paintPaper(ctx:CanvasRenderingContext2D,doc:PageDoc,width=doc.cover?PAGE_W:SPREAD_W){
+  const dark=doc.paper==='charcoal';ctx.fillStyle=papers[doc.paper];ctx.fillRect(0,0,width,PAGE_H);
+  ctx.fillStyle=dark?'rgba(255,255,255,.035)':'rgba(85,72,50,.035)';
+  for(let n=0;n<1100;n++)ctx.fillRect((n*641)%width,(n*347)%PAGE_H,1.3,1.3);
+  if(doc.texture==='dots'){ctx.fillStyle=dark?'#ffffff15':'#7d827229';for(let x=40;x<width;x+=42)for(let y=40;y<PAGE_H;y+=42){ctx.beginPath();ctx.arc(x,y,1.5,0,Math.PI*2);ctx.fill();}}
+  if(doc.texture==='lines'){ctx.strokeStyle=dark?'#ffffff12':'#8a927c28';ctx.lineWidth=1;for(let y=78;y<PAGE_H;y+=44){ctx.beginPath();ctx.moveTo(38,y);ctx.lineTo(width-38,y);ctx.stroke();}}
+  if(doc.cover){ctx.fillStyle=dark?'#00000005':'#ffffff10';for(let x=0;x<width;x+=5)ctx.fillRect(x,0,.6,PAGE_H);}
+}
 export async function paintDoc(doc: PageDoc, pixelWidth = 1600): Promise<HTMLCanvasElement> {
-  await Promise.all([document.fonts.load('400 32px Commissioner'),document.fonts.load('400 32px Literata')]);
+  const usedFonts=[...new Set(doc.elements.filter(e=>e.type==='text'||captionText(e)).map(e=>e.type==='text'?`${e.fontStyle==='italic'?'italic ':''}${e.fontWeight||400} 32px "${e.font||'Commissioner'}"`:`400 32px "${e.captionFont||'Caveat'}"`))];
+  await Promise.all(usedFonts.map(font=>document.fonts.load(font)));
   const width=doc.cover?PAGE_W:SPREAD_W, canvas=document.createElement('canvas');canvas.width=pixelWidth;canvas.height=Math.round(pixelWidth*PAGE_H/width);
-  const ctx=canvas.getContext('2d')!;ctx.scale(pixelWidth/width,pixelWidth/width);ctx.fillStyle=papers[doc.paper];ctx.fillRect(0,0,width,PAGE_H);
-  // Fixed, low-contrast paper grain; it never changes from frame to frame.
-  ctx.fillStyle=doc.paper==='charcoal'?'rgba(255,255,255,.025)':'rgba(43,48,42,.025)';for(let n=0;n<800;n++){const x=(n*641)%width,y=(n*347)%PAGE_H;ctx.fillRect(x,y,1.1,1.1);}
+  const ctx=canvas.getContext('2d')!;ctx.scale(pixelWidth/width,pixelWidth/width);paintPaper(ctx,doc,width);
   for(const e of doc.elements.filter(e=>e.type!=='stroke')) {
     ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.rotation*Math.PI/180);ctx.globalAlpha=e.opacity;
     if(e.type==='text') {
-      ctx.fillStyle=e.color||'#333b36';ctx.font=`${e.size||36}px ${e.font||'Commissioner'}`;ctx.textBaseline='top';ctx.textAlign=e.align||'left';
+      ctx.fillStyle=e.color||'#333b36';ctx.font=`${e.fontStyle==='italic'?'italic ':''}${e.fontWeight||400} ${e.size||36}px "${e.font||'Commissioner'}"`;ctx.textBaseline='top';ctx.textAlign=e.align||'left';
       ctx.beginPath();ctx.rect(0,0,e.w,e.h);ctx.clip();let y=0;
       for(const paragraph of (e.text||'').split('\n')) {let line='';for(const word of paragraph.split(' ')){const candidate=line?line+' '+word:word;if(ctx.measureText(candidate).width>e.w&&line){ctx.fillText(line,e.align==='center'?e.w/2:e.align==='right'?e.w:0,y);y+=(e.size||36)*1.35;line=word;}else line=candidate;}ctx.fillText(line,e.align==='center'?e.w/2:e.align==='right'?e.w:0,y);y+=(e.size||36)*1.35;}
     } else {
       try {
         const img=await imageFor(elementSrc(e)),b=photoBox(e,img.naturalWidth,img.naturalHeight),bx=Math.max(0,b.x),by=Math.max(0,b.y),bw=Math.min(e.w,b.x+b.w)-bx,bh=Math.min(e.h,b.y+b.h)-by;
-        if(e.frame){ctx.fillStyle='#f9f7ef';ctx.shadowColor='#17221f26';ctx.shadowBlur=10;ctx.shadowOffsetY=6;ctx.fillRect(bx-14,by-14,bw+28,bh+38);ctx.shadowColor='transparent';}
+        if(e.frame){ctx.fillStyle='#fffcf6';ctx.shadowColor='#29221a1a';ctx.shadowBlur=22;ctx.shadowOffsetY=9;ctx.fillRect(bx-16,by-16,bw+32,bh+58);ctx.shadowColor='transparent';}
         ctx.save();ctx.beginPath();ctx.rect(0,0,e.w,e.h);ctx.clip();ctx.drawImage(img,b.x,b.y,b.w,b.h);ctx.restore();
-        if(captionText(e)){ctx.fillStyle=doc.paper==='charcoal'?'#dae0d5':'#56614e';ctx.font='26px Literata';ctx.textAlign='left';ctx.textBaseline='top';captionText(e).split('\n').forEach((line,n)=>ctx.fillText(line,0,by+bh+28+n*36,e.w));}
+        if(captionText(e)){const size=e.captionSize||32;ctx.fillStyle=e.captionColor||(doc.paper==='charcoal'?'#e6e8dc':'#56614e');ctx.font=`${size}px "${e.captionFont||'Caveat'}"`;ctx.textAlign='left';ctx.textBaseline='top';captionText(e).split('\n').forEach((line,n)=>ctx.fillText(line,0,by+bh+24+n*size*1.35,e.w));}
       } catch {ctx.fillStyle=doc.paper==='charcoal'?'#4b5350':'#dedfd6';ctx.fillRect(0,0,e.w,e.h);ctx.fillStyle='#8b9389';ctx.font='28px Commissioner';ctx.fillText('Görüntü yüklenemedi',24,40);}
     }
     ctx.restore();

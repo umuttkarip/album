@@ -1,21 +1,23 @@
 import { apiUrl } from './network';
+import { fonts, type FontFamily } from './design';
 export const PAGE_W = 1000, PAGE_H = 1250, SPREAD_W = 2000;
 export type User = { id: 'umut' | 'sude'; name: string; admin: boolean };
-export type Paper = 'ivory' | 'mist' | 'charcoal';
-export const papers: Record<Paper, string> = { ivory: '#f2efe7', mist: '#e6e8e5', charcoal: '#343939' };
+export type Paper = 'ivory' | 'mist' | 'charcoal' | 'sage' | 'sand' | 'lilac';
+export const papers: Record<Paper, string> = { ivory: '#f7f2e8', mist: '#ebede9', charcoal: '#424944', sage: '#dce4d8', sand: '#e9dcc8', lilac: '#e4dfeb' };
 export type ElementType = 'photo' | 'text' | 'sticker' | 'stroke';
 export type PageElement = {
   id: string; type: ElementType; x: number; y: number; w: number; h: number;
   rotation: number; opacity: number; assetId?: string; stickerId?: string;
-  text?: string; font?: 'Commissioner' | 'Literata'; size?: number; color?: string;
+  text?: string; font?: FontFamily; size?: number; color?: string;
+  fontWeight?: 400 | 600 | 700; fontStyle?: 'normal' | 'italic';
   align?: 'left' | 'center' | 'right'; fit?: 'contain' | 'cover'; frame?: boolean;
   crop?: { scale: number; x: number; y: number }; points?: number[]; eraser?: boolean;
-  caption?: string; date?: string;
+  caption?: string; date?: string; captionFont?: FontFamily; captionSize?: number; captionColor?: string;
 };
-export type PageDoc = { version: 1; paper: Paper; cover: boolean; elements: PageElement[] };
+export type PageDoc = { version: 1; paper: Paper; cover: boolean; elements: PageElement[]; autoLayout?: boolean; texture?: 'plain' | 'dots' | 'lines'; coverLayout?: 'auto' | 'single' | 'collage' | 'plain' };
 export type Spread = { id: string; album_id: string; position: number; revision: number; doc: PageDoc; lock_owner?: string | null; lock_expires?: number };
 export type Asset = { id: string; album_id: string; kind: 'photo' | 'sticker'; filename: string; mime: string; width: number; height: number; created_by: string; ready: number };
-export type Album = { id: string; title: string; description: string; visibility: 'shared' | 'personal'; owner_id: string; paper: Paper; created_at: number; updated_at: number; photo_count?: number; cover_asset_id?: string; cover_doc?: PageDoc };
+export type Album = { id: string; title: string; description: string; visibility: 'shared' | 'personal'; owner_id: string; paper: Paper; created_at: number; updated_at: number; photo_count?: number; cover_asset_id?: string; cover_doc?: PageDoc; cover_assets?: Pick<Asset, 'id'|'width'|'height'>[] };
 export const uid = () => crypto.randomUUID();
 export const blankDoc = (paper: Paper = 'ivory', cover = false): PageDoc => ({ version: 1, paper, cover, elements: [] });
 export const canRead = (u: User, a: Pick<Album, 'visibility' | 'owner_id'>) => u.admin || a.visibility === 'shared' || a.owner_id === u.id;
@@ -29,9 +31,23 @@ export const templates = [
   { id: 'grid', name: 'Dörtlü', count: 8, description: 'Dört fotoğraflı sayfalar' },
   { id: 'note', name: 'Fotoğraf ve not', count: 2, description: 'Fotoğrafa bir cümle ekle' },
   { id: 'panorama', name: 'Çift sayfa', count: 1, description: 'İki sayfaya yayılan tek fotoğraf' },
+  { id: 'scrapbook', name: 'Kolaj', count: 4, description: 'Serbest fotoğraf düzeni' },
+  { id: 'postcard', name: 'Kartpostal', count: 2, description: 'Fotoğraf ve yazı alanı' },
+  { id: 'film', name: 'Film şeridi', count: 6, description: 'Üçlü fotoğraf şeritleri' },
 ];
 export function applyTemplate(id: string, assets: readonly Pick<Asset, 'id' | 'width' | 'height'>[], paper: Paper = 'ivory', cover = false): PageDoc {
   const doc = blankDoc(paper, cover); let n = 0;
+  if(['scrapbook','postcard','film'].includes(id)){
+    for(let page=0;page<(cover?1:2);page++){
+      const offset=page*PAGE_W;
+      const cells=id==='film'?[[115,95,770,315,0],[115,465,770,315,0],[115,835,770,315,0]]
+        :id==='postcard'?[[115,170,770,770,page?3:-3]]
+        :[[110,150,740,455,-4],[155,710,720,410,4]];
+      for(const [x,y,w,h,rotation] of cells){const a=assets[n++];if(!a)continue;doc.elements.push(newElement('photo',{assetId:a.id,x:offset+x,y,w,h,rotation,fit:'contain',frame:true}));if(id!=='film')doc.elements.push(newElement('sticker',{stickerId:page?'tape-sage':'tape-oat',x:offset+x+80,y:y-26,w:210,h:46,rotation:rotation-5,opacity:.8}));}
+      if(id==='postcard'&&doc.elements.some(e=>e.type==='photo'&&e.x>=offset&&e.x<offset+1000))doc.elements.push(newElement('text',{text:'',font:'Caveat',size:44,x:offset+150,y:1030,w:700,h:130,color:paper==='charcoal'?'#f0ece2':'#59604f'}));
+    }
+    return doc;
+  }
   if (id === 'panorama' && !cover) {
     if (assets[0]) doc.elements.push(newElement('photo', { assetId: assets[0].id, x: 0, y: 160, w: 2000, h: 930, fit: 'contain' }));
     return doc;
@@ -42,7 +58,7 @@ export function applyTemplate(id: string, assets: readonly Pick<Asset, 'id' | 'w
       : id === 'duo' ? [[80,110,840,480],[80,660,840,480]]
       : id === 'full' ? [[0,0,1000,1250]] : id === 'note' ? [[90,140,820,800]] : [[90,150,820,950]];
     for (const [x,y,w,h] of cells) { const a = assets[n++]; if (a) doc.elements.push(newElement('photo', { assetId: a.id, x: x + offset, y, w, h, fit: id === 'full' || id === 'grid' ? 'cover' : 'contain', frame: id !== 'full' })); }
-    if (id === 'note' && doc.elements.some(e => e.x >= offset && e.x < offset + PAGE_W)) doc.elements.push(newElement('text', { x: offset + 100, y: 1020, w: 800, h: 120, text: 'Bir not ekle', size: 35, font: 'Literata', color: paper === 'charcoal' ? '#e6e8df' : '#444b47', align: 'center' }));
+    if (id === 'note' && doc.elements.some(e => e.x >= offset && e.x < offset + PAGE_W)) doc.elements.push(newElement('text', { x: offset + 100, y: 1020, w: 800, h: 120, text: '', size: 42, font: 'Caveat', color: paper === 'charcoal' ? '#e6e8df' : '#444b47', align: 'center' }));
   }
   return doc;
 }
@@ -56,6 +72,9 @@ export function validDoc(value: unknown): value is PageDoc {
   if (!value || typeof value !== 'object') return false;
   const d = value as PageDoc;
   if (d.version !== 1 || !Object.hasOwn(papers,d.paper) || typeof d.cover !== 'boolean' || !Array.isArray(d.elements) || d.elements.length > 1200) return false;
+  if(d.autoLayout!==undefined&&typeof d.autoLayout!=='boolean')return false;
+  if(d.texture!==undefined&&!['plain','dots','lines'].includes(d.texture))return false;
+  if(d.coverLayout!==undefined&&!['auto','single','collage','plain'].includes(d.coverLayout))return false;
   const ids = new Set<string>();
   return d.elements.every(e => {
     if (!e || typeof e.id !== 'string' || e.id.length > 80 || ids.has(e.id) || !['photo','text','sticker','stroke'].includes(e.type)) return false;
@@ -64,7 +83,13 @@ export function validDoc(value: unknown): value is PageDoc {
     if (e.type === 'photo' && typeof e.assetId !== 'string') return false;
     if (e.caption!==undefined && (typeof e.caption!=='string'||e.caption.length>500)) return false;
     if (e.date!==undefined && (typeof e.date!=='string'||(e.date!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(e.date)))) return false;
-    if (e.type === 'text' && (typeof e.text !== 'string' || e.text.length > 5000 || !['Commissioner','Literata'].includes(e.font || 'Commissioner') || !Number.isFinite(e.size) || e.size! < 8 || e.size! > 200)) return false;
+    if (e.font!==undefined&&!fonts.some(f=>f.family===e.font))return false;
+    if (e.fontWeight!==undefined&&![400,600,700].includes(e.fontWeight))return false;
+    if (e.fontStyle!==undefined&&!['normal','italic'].includes(e.fontStyle))return false;
+    if (e.captionFont!==undefined&&!fonts.some(f=>f.family===e.captionFont))return false;
+    if (e.captionSize!==undefined&&(!Number.isFinite(e.captionSize)||e.captionSize<12||e.captionSize>80))return false;
+    if (e.captionColor!==undefined&&!/^#[a-f\d]{6}$/i.test(e.captionColor))return false;
+    if (e.type === 'text' && (typeof e.text !== 'string' || e.text.length > 5000 || !Number.isFinite(e.size) || e.size! < 8 || e.size! > 200)) return false;
     if (e.type === 'stroke' && (!Array.isArray(e.points) || e.points.length < 4 || e.points.length % 2 || e.points.length > 20000 || !e.points.every(Number.isFinite) || !Number.isFinite(e.size) || e.size! < 1 || e.size! > 100)) return false;
     if (e.crop && (![e.crop.scale,e.crop.x,e.crop.y].every(Number.isFinite) || e.crop.scale < 1 || e.crop.scale > 8 || Math.abs(e.crop.x) > 1 || Math.abs(e.crop.y) > 1)) return false;
     return !e.color || /^#[a-f\d]{6}$/i.test(e.color);

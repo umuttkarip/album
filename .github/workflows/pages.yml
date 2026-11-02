@@ -29,6 +29,8 @@ jobs:
         run: node independent/probe-api.mjs
         env:
           ALBUM_API_BASE: ${{ vars.ALBUM_API_BASE }}
+      - name: Verify built assets
+        run: node independent/probe-build.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
