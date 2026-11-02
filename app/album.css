@@ -59,6 +59,7 @@ legend { font-size: 13px; margin-bottom: 12px; }
 .spin { animation: spin 1.1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .boot-screen { height: 100dvh; display: flex; align-items: center; justify-content: center; gap: 22px; }
+.screen-error { flex-direction:column; gap:18px; color:var(--muted); font-size:14px; }
 .notice { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; padding: 9px 18px; font-size: 13px; background: #dce5ce; color: var(--ink); z-index: 12; }
 .notice.error { background: #efd2c3; color: #684339; }
 .notice button { min-height: 32px; text-decoration: underline; text-underline-offset: 3px; }
