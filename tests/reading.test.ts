@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {blankDoc,newElement,applyTemplate,type Spread} from '../lib/model';
 import {readingViews} from '../lib/render';
-import {readingMode,requiresOpenBook,savedViewIndex,initialReadingMode,readingPreferenceKey,readerPageSize,physicalPageStacks} from '../lib/reading';
+import {readingMode,requiresOpenBook,savedViewIndex,initialReadingMode,readingPreferenceKey,readerPageSize} from '../lib/reading';
 const spread=(id:string,position:number,doc=blankDoc()):Spread=>({id,album_id:'a',position,revision:0,doc});
 const ordinary={...blankDoc(),elements:[newElement('photo',{assetId:'a',x:110,y:120,w:780,h:1000})]};
 const panorama=applyTemplate('panorama',[{id:'wide',width:1800,height:1000}]);
@@ -24,19 +24,4 @@ test('new reading preferences default to a single page and do not reuse the old 
 test('landscape fits both page modes into short phones without changing the document or preference',()=>{
   for(const frame of [{w:844,h:390},{w:667,h:267},{w:740,h:360}])for(const mode of ['single','book']as const){const size=readerPageSize(frame,mode,true),rails=frame.w>=720;assert.ok(size.w<=frame.w-(rails?248:28)+.01);assert.ok(size.h+(rails?48:66)<=frame.h+.01);assert.ok(Math.abs(size.w/size.h-(mode==='book'?1.6:.8))<.0001);}
   assert.ok(readerPageSize({w:844,h:336},'book',true).h>readerPageSize({w:844,h:336},'book').h);
-});
-test('paper stacks contain distinct physical faces on the correct sides of an open spread',()=>{
-  const spreads=[spread('cover',-1,blankDoc('ivory',true)),spread('one',0,ordinary),spread('wide',1,panorama),spread('last',2,ordinary)];
-  const current=readingViews(spreads,'book')[2],stacks=physicalPageStacks(spreads,current);
-  assert.deepEqual(stacks.left.map(v=>v.label),['1']);assert.deepEqual(stacks.right.map(v=>v.label),['6']);
-  assert.equal(stacks.left.concat(stacks.right).some(v=>v.spread.id==='wide'),false);
-  const cover=physicalPageStacks(spreads,readingViews(spreads,'single')[0]);assert.equal(cover.left.length,0);assert.deepEqual(cover.right.map(v=>v.label),['1','2']);
-  const openCover=physicalPageStacks(spreads,readingViews(spreads,'book')[0],'book');assert.deepEqual(openCover.right.map(v=>v.label),['2','4']);
-  const last=physicalPageStacks(spreads,readingViews(spreads,'book').at(-1)!);assert.equal(last.right.length,0);assert.ok(last.leftDepth>cover.leftDepth);
-});
-test('open book previews show the same colored face that will appear underneath a forward or backward turn',()=>{
-  const spreads=Array.from({length:5},(_,i)=>spread('p'+i,i,{...blankDoc(),surfaces:{left:{color:'#'+String(i+1).repeat(6),pattern:'plain'},right:{color:'#'+String(i+5).repeat(6),pattern:'plain'}}}));
-  const current=readingViews(spreads,'book')[2],stack=physicalPageStacks(spreads,current,'book');
-  assert.deepEqual(stack.right.map(v=>[v.region,v.spread.doc.surfaces!.right!.color]),[['right','#888888'],['right','#999999']]);
-  assert.deepEqual(stack.left.map(v=>[v.region,v.spread.doc.surfaces!.left.color]),[['left','#222222'],['left','#111111']]);
 });

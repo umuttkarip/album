@@ -1007,27 +1007,11 @@ img[aria-busy=false] { transition:opacity .16s; }
 }
 
 
-/* Bound paper: independent left/right blocks, anchored at the spine. */
-.reader-stack { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); pointer-events:none; z-index:0; }
-.stack-cover-board { position:absolute; inset:-2px -5px -10px; border-radius:6px 9px 9px 6px; background:var(--book-cloth); box-shadow:var(--shadow-book),inset 0 -1px 1px #ffffff24; }
-.spread-stack .stack-cover-board::after { content:''; position:absolute; width:8px; top:0; bottom:0; left:calc(50% - 4px); background:linear-gradient(90deg,transparent,#090f1638,transparent); }
-.page-stack { position:absolute; top:0; bottom:0; width:50%; }
-.page-stack.left { left:0; --stack-depth:var(--left-depth); }
-.page-stack.right { right:0; --stack-depth:var(--right-depth); }
-.stack-paper-block { position:absolute; inset:2px -1px calc(-2px - var(--stack-depth)); background:repeating-linear-gradient(0deg,color-mix(in srgb,var(--paper-color) 86%,#18211f) 0 1px,var(--paper-color) 1px 2px,color-mix(in srgb,var(--paper-color) 96%,#fffdf5) 2px 3px); box-shadow:0 1px 1px #0b10273d; }
-.left .stack-paper-block { left:calc(-1px - var(--stack-depth)*.5); border-radius:5px 1px 1px 6px; }
-.right .stack-paper-block { right:calc(-1px - var(--stack-depth)*.5); border-radius:1px 6px 6px 1px; }
-.stack-leaf { position:absolute; inset:0; overflow:hidden; border:1px solid color-mix(in srgb,var(--paper-color) 87%,#18211f); background:var(--paper-color); box-shadow:0 2px 3px #0c132629; transition:transform .3s var(--ease); }
-.stack-leaf canvas { display:block; width:100%; height:100%; }
-.left .stack-leaf { border-radius:6px 0 0 6px; transform-origin:right center; }
-.right .stack-leaf { border-radius:0 6px 6px 0; transform-origin:left center; }
-.left .stack-leaf.leaf-0 { transform:translate(calc(-1px - var(--stack-depth)*.4),-1px) rotate(-1.6deg); z-index:2; }
-.left .stack-leaf.leaf-1 { transform:translate(calc(-3px - var(--stack-depth)*.7),1px) rotate(-3.3deg); z-index:1; }
-.right .stack-leaf.leaf-0 { transform:translate(calc(2px + var(--stack-depth)*.4),1px) rotate(1.9deg); z-index:2; }
-.right .stack-leaf.leaf-1 { transform:translate(calc(4px + var(--stack-depth)*.7),2px) rotate(4.1deg); z-index:1; }
-.single-stack .page-stack.left { display:none; }
-.single-stack .page-stack.right { width:100%; }
-.single-stack .stack-leaf { border-radius:5px 8px 8px 5px; }
+/* A single bound stack shares the turning sheet's scene and clock. */
+.book-frame > .book-scene { overflow:visible!important; border-radius:0; }
+.book-underlay { position:absolute; inset:-18px; width:calc(100% + 36px); height:calc(100% + 36px); pointer-events:none; }
+.book-underlay .binding-shadow { filter:drop-shadow(1px 4px 5px #03081280); }
+.book-frame .flat-page { position:relative; z-index:1; }
 .book-frame,.book-frame.book.is-cover { box-shadow:none; }
 .book-frame::before,.book-frame::after { display:none; }
 .orientation-hint { display:none; margin:-7px 0 0; gap:7px; align-items:center; justify-content:center; color:#b8c2c7; font-size:11px; line-height:1.4; }
