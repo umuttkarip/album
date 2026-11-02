@@ -8,6 +8,7 @@ import type { Turn } from './BookCanvas';
 import ViewTransition,{type ViewMorph} from './ViewTransition';
 import {readingMode,requiresOpenBook,savedViewIndex,readingResolution,type ReadingMode} from '../lib/reading';
 import {createReaderRenderer} from '../lib/reader-renderer';
+import {bookStyle} from '../lib/book-style';
 const BookCanvas=lazy(()=>import('./BookCanvas'));
 function Flat({canvas}:{canvas:HTMLCanvasElement}){const ref=useRef<HTMLCanvasElement>(null);useEffect(()=>{const c=ref.current!;c.width=canvas.width;c.height=canvas.height;c.getContext('2d')!.drawImage(canvas,0,0);},[canvas]);return <canvas ref={ref} className="flat-page"/>;}
 export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,onEdit,onPhoto,onDetails,navigation}:{album:Album;spreads:Spread[];assets:Asset[];user:User;onBack:()=>void;onEdit:(id:string,side?:'left'|'right'|'full')=>void;onPhoto:(id:string)=>void;onDetails:()=>void;navigation?:React.ReactNode}) {
@@ -20,13 +21,18 @@ export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,o
   const renderer=useMemo(createReaderRenderer,[]);
   const current=views[Math.min(index,views.length-1)],motionRef=useRef<Turn|null>(null),pointer=useRef<{x:number;y:number;time:number;lastX:number;dragged:boolean;loading:boolean;up:boolean;modeChange:boolean}|null>(null),frame=useRef<HTMLDivElement>(null),[frameSize,setFrameSize]=useState({w:700,h:600});
   const mode=readingMode(current,preference),forcedBook=requiresOpenBook(current.spread.doc);
+  const coverDoc=spreads.find(s=>s.doc.cover)?.doc||current.spread.doc;
+  const nextLeaves=views.slice(index+1,index+3);
+  const leafViews=current.region==='cover'?readingViews(spreads,'single').filter(v=>v.region!=='cover').slice(0,2):nextLeaves.length?nextLeaves:views.slice(Math.max(1,index-2),index);
+  const pageArea={w:frameSize.w,h:Math.max(1,frameSize.h-76)};
+  function displaySize(value:ReadingMode){const aspect=value==='book'?1.6:.8,w=Math.max(100,Math.min(pageArea.w-40,(pageArea.h-40)*aspect));return {w,h:w/aspect};}
   useEffect(()=>{const m=matchMedia('(prefers-reduced-motion: reduce)'),update=()=>setReduced(m.matches);update();m.addEventListener('change',update);return()=>m.removeEventListener('change',update);},[]);
-  const ensure=useCallback((v:ReadingView)=>{const targetMode=readingMode(v,preference),width=readingResolution(frameSize,targetMode,window.devicePixelRatio);return renderer.view(v,targetMode,width);},[preference,frameSize.w,frameSize.h]);
+  const ensure=useCallback((v:ReadingView)=>{const targetMode=readingMode(v,preference),width=readingResolution({w:frameSize.w,h:Math.max(1,frameSize.h-76)},targetMode,window.devicePixelRatio);return renderer.view(v,targetMode,width);},[preference,frameSize.w,frameSize.h]);
   useEffect(()=>{let alive=true;setLoading(true);void ensure(current).then(c=>{if(alive){setCanvas(c);setLoading(false);}}).catch(()=>{if(alive){setError('Sayfa yüklenemedi.');setLoading(false);}});if(views[index+1])void ensure(views[index+1]);if(views[index-1])void ensure(views[index-1]);try{localStorage.setItem(`album:position:${user.id}:${album.id}`,JSON.stringify({key:current.key,id:current.spread.id}));}catch{}return()=>{alive=false;};},[index,views,ensure,current,user.id,album.id]);
   useEffect(()=>{const host=frame.current;if(!host)return;const r=new ResizeObserver(([e])=>setFrameSize({w:e.contentRect.width,h:e.contentRect.height}));r.observe(host);return()=>r.disconnect();},[]);
   useEffect(()=>()=>renderer.clear(),[]);
   const finish=useCallback((cancelled:boolean)=>{const t=motionRef.current;if(!t)return;if(!cancelled){setCanvas(t.to);setIndex(t.id);};setTurn(null);motionRef.current=null;},[]);
-  function modeMorph(from:HTMLCanvasElement,to:HTMLCanvasElement,oldMode:ReadingMode,newMode:ReadingMode,id:number,split=false):ViewMorph{const fa=oldMode==='book'?1.6:.8,ta=newMode==='book'?1.6:.8,fw=Math.max(100,Math.min(frameSize.w-40,(frameSize.h-40)*fa)),tw=Math.max(100,Math.min(frameSize.w-40,(frameSize.h-40)*ta));return {id,from,to,full:newMode==='book'?to:from,fromBook:oldMode==='book',toBook:newMode==='book',side:lastSide.current,split,fromW:fw,fromH:fw/fa,toW:tw,toH:tw/ta};}
+  function modeMorph(from:HTMLCanvasElement,to:HTMLCanvasElement,oldMode:ReadingMode,newMode:ReadingMode,id:number,split=false):ViewMorph{const fromSize=displaySize(oldMode),toSize=displaySize(newMode);return {id,from,to,full:newMode==='book'?to:from,fromBook:oldMode==='book',toBook:newMode==='book',side:lastSide.current,split,fromW:fromSize.w,fromH:fromSize.h,toW:toSize.w,toH:toSize.h};}
   async function go(next:number,instant=false){
     if(next<0||next>=views.length||next===index||motionRef.current&&!instant)return;setMorph(null);modeRequest.current=preference;const generation=++modeGeneration.current;
     try{const to=await ensure(views[next]);if(generation!==modeGeneration.current)return;const targetMode=readingMode(views[next],preference);
@@ -39,10 +45,10 @@ export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,o
     if(forcedBook)return;const next=modeRequest.current==='single'?'book':'single';modeRequest.current=next;const generation=++modeGeneration.current;
     if(current.region==='left'||current.region==='right')lastSide.current=current.region;
     const list=readingViews(spreads,next),n=Math.max(0,list.findIndex(v=>v.spread.id===current.spread.id&&(next==='book'||v.region==='full'||v.region==='cover'||v.region===lastSide.current))),view=list[n];setLoading(true);
-    try{const ready=await renderer.view(view,next,readingResolution(frameSize,next,window.devicePixelRatio));if(generation!==modeGeneration.current)return;
-      const oldCanvas=canvas,oldMode=mode,oldAspect=oldMode==='book'?1.6:.8,newAspect=next==='book'?1.6:.8,fw=Math.max(100,Math.min(frameSize.w-40,(frameSize.h-40)*oldAspect)),tw=Math.max(100,Math.min(frameSize.w-40,(frameSize.h-40)*newAspect));
+    try{const ready=await renderer.view(view,next,readingResolution(pageArea,next,window.devicePixelRatio));if(generation!==modeGeneration.current)return;
+      const oldCanvas=canvas,oldMode=mode,fromSize=displaySize(oldMode),toSize=displaySize(next);
       motionRef.current=null;setTurn(null);setCanvas(ready);setPreference(next);setIndex(n);
-      if(oldCanvas&&!reduced&&!flat&&oldMode!==next&&current.region!=='cover')setMorph({id:generation,from:oldCanvas,to:ready,full:next==='book'?ready:oldCanvas,fromBook:oldMode==='book',toBook:next==='book',side:lastSide.current,split:current.region!=='full'||oldMode==='book'&&!spansCenter(current.spread.doc),fromW:fw,fromH:fw/oldAspect,toW:tw,toH:tw/newAspect});else setMorph(null);
+      if(oldCanvas&&!reduced&&!flat&&oldMode!==next&&current.region!=='cover')setMorph({id:generation,from:oldCanvas,to:ready,full:next==='book'?ready:oldCanvas,fromBook:oldMode==='book',toBook:next==='book',side:lastSide.current,split:current.region!=='full'||oldMode==='book'&&!spansCenter(current.spread.doc),fromW:fromSize.w,fromH:fromSize.h,toW:toSize.w,toH:toSize.h});else setMorph(null);
       try{localStorage.setItem('album:view:'+user.id,next);}catch{}
     }catch{if(generation===modeGeneration.current){modeRequest.current=preference;setError('Görünüm değiştirilemedi.');}}finally{if(generation===modeGeneration.current)setLoading(false);}
   }
@@ -61,12 +67,13 @@ export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,o
     const progress=t.progress||0,velocity=Math.abs(e.clientX-p.x)/Math.max(1,performance.now()-p.time),complete=progress>.28||velocity>.55;const updated={...t,dragging:false,start:performance.now(),fromP:progress,toP:complete?1:0,duration:complete?Math.max(140,420*(1-progress)):180};motionRef.current=updated;setTurn(updated);
   }
   function cancel(){const t=motionRef.current;pointer.current=null;if(t?.dragging){const n={...t,dragging:false,start:performance.now(),fromP:t.progress||0,toP:0,duration:180};motionRef.current=n;setTurn(n);}}
-  const aspect=mode==='book'?1.6:.8,w=Math.max(100,Math.min(frameSize.w-40,(frameSize.h-40)*aspect)),h=w/aspect,editable=canEdit(user,album);
-  return <div className="reader-screen">
+  const {w,h}=displaySize(mode),editable=canEdit(user,album);
+  return <div className="reader-screen" style={bookStyle(coverDoc)}>
     <header className="reader-header"><button className="icon-button" onClick={onBack} aria-label="Albümlere dön"><ArrowLeft/></button><div className="reader-heading"><h1>{album.title}</h1><span>{album.visibility==='shared'?'Ortak':'Özel'}</span></div>{navigation}<div className="header-actions"><button className="icon-button view-toggle" onClick={toggleMode} disabled={forcedBook} title={forcedBook?'İki sayfaya yayılan fotoğraf':mode==='single'?'Açık deftere geç':'Tek sayfaya geç'} aria-label={forcedBook?'İki sayfaya yayılan fotoğraf':mode==='single'?'Açık deftere geç':'Tek sayfaya geç'}>{mode==='single'?<BookOpen/>:<RectangleVertical/>}</button>{editable&&<><button className="icon-button" onClick={onDetails} aria-label="Albüm bilgileri"><MoreHorizontal/></button><button className="button secondary compact" aria-label="Sayfayı düzenle" onClick={()=>onEdit(current.spread.id,current.region==='left'||current.region==='right'?current.region:'full')}><Pencil size={16}/><span>Düzenle</span></button></>}</div></header>
     {error&&<div className="notice error">{error}<button onClick={()=>{setError('');void go(index,true);}}>Yeniden dene</button></div>}
-    <main className={'reader-stage '+mode} ref={frame}>
-      <div className="reader-leaves" style={{width:current.region==='cover'&&mode==='book'?w/2:w,height:h}} aria-hidden="true">{views.filter(v=>v.region!=='cover'&&v.key!==current.key).slice(Math.max(0,index-1),Math.max(0,index-1)+2).map((v,i)=><span className={'reader-leaf leaf-'+i} key={v.key}><LeafPage view={v} mode={mode} cover={current.region==='cover'}/></span>)}</div>
+    <div className="reader-layout" ref={frame}>
+    <main className={'reader-stage '+mode} style={{width:w,height:h}}>
+      <div className="reader-leaves" style={{width:current.region==='cover'&&mode==='book'?w/2:w,height:h}} aria-hidden="true">{leafViews.map((v,i)=><span className={'reader-leaf leaf-'+i} key={v.key}><LeafPage view={v} mode={mode} cover={current.region==='cover'}/></span>)}</div>
       {morph&&<ViewTransition key={morph.id} value={morph} onDone={()=>setMorph(null)}/>}
       <div className={'book-frame '+mode+' '+(current.region==='cover'?'is-cover':'')+' '+(loading?'is-loading':'')+' '+(morph?'is-morphing':'')} style={{width:w,height:h}} onPointerDown={down} onPointerMove={e=>void move(e)} onPointerUp={up} onPointerCancel={cancel}>
         {canvas?(flat||reduced?<Flat canvas={canvas}/>:<Suspense fallback={<Flat canvas={canvas}/>}><BookCanvas canvas={canvas} book={mode==='book'} cover={current.region==='cover'} turn={turn} onDone={finish} onLost={()=>{setFlat(true);motionRef.current=null;setTurn(null);}} spanning={spansCenter(current.spread.doc)}/></Suspense>):<div className="page-loading"><LoaderCircle className="spin"/><span>Yükleniyor</span></div>}
@@ -75,7 +82,8 @@ export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,o
       {!current.spread.doc.cover&&!current.spread.doc.elements.length&&editable&&<button className="empty-page-action" onClick={()=>onEdit(current.spread.id,current.region==='left'||current.region==='right'?current.region:'full')}><ImagePlus size={22}/><span>Fotoğraf ekle</span></button>}
     </main>
     <footer className="reader-footer"><button className="text-button cover-link" onClick={()=>void go(0,true)}>Kapağa dön</button><div className="page-navigation"><button className="icon-button" disabled={index===0} onClick={()=>void go(index-1)} aria-label="Önceki sayfa"><ChevronLeft/></button><button className="page-counter" onClick={()=>setThumbnails(v=>!v)} aria-expanded={thumbnails}><Grid2X2 size={15}/><span>{current.label}</span><span className="muted">/ {Math.max(0,(spreads.length-1)*2)}</span></button><button className="icon-button" disabled={index===views.length-1} onClick={()=>void go(index+1)} aria-label="Sonraki sayfa"><ChevronRight/></button></div>{editable?<button className="text-button add-photo-link" onClick={()=>onEdit(current.spread.id,current.region==='left'||current.region==='right'?current.region:'full')}><Plus size={16}/>Fotoğraf ekle</button>:<span/>}</footer>
-    {thumbnails&&<div className="page-filmstrip"><div className="filmstrip-title"><span>Sayfalar</span><button className="icon-button small" aria-label="Önizlemeleri kapat" onClick={()=>setThumbnails(false)}><X size={17}/></button></div><div className="filmstrip-scroll">{views.map((v,i)=><button className={'filmstrip-item '+(i===index?'active':'')} key={v.key} onClick={()=>{void go(i,true);setThumbnails(false);}}><MiniPage view={v}/><span>{v.label}</span></button>)}</div></div>}
+    </div>
+    {thumbnails&&<div className="page-filmstrip" style={{bottom:Math.max(12,(frameSize.h-h-76)/2+76)}}><div className="filmstrip-title"><span>Sayfalar</span><button className="icon-button small" aria-label="Önizlemeleri kapat" onClick={()=>setThumbnails(false)}><X size={17}/></button></div><div className="filmstrip-scroll">{views.map((v,i)=><button className={'filmstrip-item '+(i===index?'active':'')} key={v.key} onClick={()=>{void go(i,true);setThumbnails(false);}}><MiniPage view={v}/><span>{v.label}</span></button>)}</div></div>}
   </div>;
 }
 function MiniPage({view}:{view:ReadingView}){const ref=useRef<HTMLCanvasElement>(null),host=useRef<HTMLSpanElement>(null);useEffect(()=>{let live=true;const observer=new IntersectionObserver(entries=>{if(!entries.some(e=>e.isIntersecting))return;observer.disconnect();void paintView(view,'single',80).then(c=>{if(live&&ref.current){ref.current.width=80;ref.current.height=100;ref.current.getContext('2d')!.drawImage(c,0,0,80,100);}c.width=c.height=1;});});if(host.current)observer.observe(host.current);return()=>{live=false;observer.disconnect();};},[view]);return <span ref={host}><canvas ref={ref}/></span>;}

@@ -32,4 +32,8 @@ Boş veya otomatik sayfalar, yüklenen fotoğraflardan düzen üretir; özel dü
 
 Altı tasarım kapak ve sayfa önizlemeleriyle seçilir. Albüm ayarındaki yeni tasarım yalnız yeni sayfaların varsayılanıdır; mevcut bir sayfada Kâğıt bölümünden önizlenip uygulanır. İki sayfa Sığdır/Doldur, bağımsız sol/sağ kâğıt, dört fotoğraf kenarı ve mobil çalışma odağı aynı belge modelini kullanır. 48 malzeme, beş şeffaf kullanıcı görseli ve özel yüklemeler ayrı paketlerdedir.
 
+Yeni albüm ekranında büyük kapak/açık sayfa önizlemesi ve fotoğrafsız kapak görünümü vardır; örnek fotoğraflar yeni albüme kopyalanmaz. Altı tasarımın yeni yerleşimleri opsiyonel `layoutVersion:2` belge alanıyla ayrılır. Sürümsüz otomatik belgeler eski düzenlerini, elle düzenlenmiş belgeler bütün konumlarını korur. Veritabanı migration'ı gerekmez; yeni albümlerin bu alanla başlaması için Worker ve arayüz birlikte güncellenir.
+
+Cilt rengi kayıtlı kapak yüzeyini devralır; kütüphane yaprakları gerçek sayfa önizlemeleridir. Mobil editörde Fotoğraf/Şablon/Metin/Çıkartma araçları görünür; Diğer menüsü çizim ve kâğıt araçlarını açar. Günler küçük yığınları 4:5, açılan gün fotoğrafları kaynak oranıyla gösterir. Gerektiğinde çizim ve sınırlı görüntü/doku önbellekleri korunur.
+
 Worker güncellemesinden önce `npx wrangler d1 migrations apply album --remote --config wrangler.album.jsonc` ile0001 migration'ını uygula. Eski belgeler ve orijinal fotoğraflar korunur. Fiziksel Android dokunma testi, responsive tarayıcı kontrolünden ayrıdır.

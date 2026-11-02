@@ -30,7 +30,7 @@ function CanvasItem({element:e,select,change,editable,tool,guides,pageWidth,dark
 
 export default function Editor({album,spreads:initialSpreads,assets:initialAssets,user,initialId,initialFocus,onBack,onRefresh}:{album:Album;spreads:Spread[];assets:Asset[];user:User;initialId:string;initialFocus?:'left'|'right'|'full';onBack:()=>void;onRefresh:()=>Promise<void>}) {
   const [spreads,setSpreads]=useState(initialSpreads),[assets,setAssets]=useState(initialAssets),[spreadId,setSpreadId]=useState(initialId),[doc,setDoc]=useState<PageDoc>(()=>resolveSpreads(initialSpreads,initialAssets,album.title).find(s=>s.id===initialId)!.doc);
-  const [panelOpen,setPanelOpen]=useState(()=>window.innerWidth>=761),[cropMode,setCropMode]=useState(false),[paperSide,setPaperSide]=useState<'left'|'right'>('left'),[stickerPack,setStickerPack]=useState('paper');
+  const [panelOpen,setPanelOpen]=useState(()=>window.innerWidth>=761),[toolsOpen,setToolsOpen]=useState(false),[cropMode,setCropMode]=useState(false),[paperSide,setPaperSide]=useState<'left'|'right'>('left'),[stickerPack,setStickerPack]=useState('paper');
   const [tool,setTool]=useState('select'),[panel,setPanel]=useState('photos'),[selected,setSelected]=useState<string|null>(null),[status,setStatus]=useState('loading'),[error,setError]=useState(''),[readOnly,setReadOnly]=useState(true);
   const [revision,setRevision]=useState(0),[restore,setRestore]=useState<any>(null),[preview,setPreview]=useState<PageDoc|null>(null),[chosen,setChosen]=useState<string[]>([]),[historyTick,setHistoryTick]=useState(0),[fontTick,setFontTick]=useState(0),[previewTemplate,setPreviewTemplate]=useState('');
   const [brushColor,setBrushColor]=useState('#485549'),[brushSize,setBrushSize]=useState(8),[draftStroke,setDraftStroke]=useState<number[]|null>(null),[jobs,setJobs]=useState<UploadJob[]>([]),[uploadOpen,setUploadOpen]=useState(false),[uploadKind,setUploadKind]=useState<'photo'|'sticker'>('photo');
@@ -44,6 +44,13 @@ export default function Editor({album,spreads:initialSpreads,assets:initialAsset
   const history=useRef<{past:PageDoc[];future:PageDoc[];group:string;time:number}>({past:[],future:[],group:'',time:0});
   useEffect(()=>setCropMode(false),[selected,spreadId]);
   useEffect(()=>setPaperSide('left'),[spreadId]);
+  useEffect(()=>{
+    if(!toolsOpen)return;
+    const outside=(e:PointerEvent)=>{if(!(e.target as HTMLElement).closest('.extra-tools,.more-tools-button'))setToolsOpen(false);};
+    const key=(e:KeyboardEvent)=>{if(e.key==='Escape')setToolsOpen(false);};
+    document.addEventListener('pointerdown',outside);document.addEventListener('keydown',key);
+    return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',key);};
+  },[toolsOpen]);
   const current=spreads.find(s=>s.id===spreadId)!,width=doc.cover?1000:2000,focus=doc.cover||spansCenter(preview||doc)?'full':pageFocus,visibleWidth=focus==='full'?width:1000,focusStart=focus==='right'?1000:0,fit=Math.min((viewport.w-48)/visibleWidth,(viewport.h-48)/1250),scale=fit*zoom,offset={x:(viewport.w-visibleWidth*scale)/2-focusStart*scale+pan.x,y:(viewport.h-1250*scale)/2+pan.y};
   const displayed=preview||doc,selectedElement=doc.elements.find(e=>e.id===selected),disabled=readOnly||!!preview;
 
@@ -171,8 +178,10 @@ export default function Editor({album,spreads:initialSpreads,assets:initialAsset
         </div>
       </aside>
     </div>
+    {toolsOpen&&<div className="extra-tools" id="extra-page-tools" role="toolbar" aria-label="Diğer sayfa araçları">{[['select',MousePointer2,'Seç'],['pen',Pencil,'Kalem'],['eraser',Eraser,'Silgi'],['paper',Palette,'Kâğıt']].map(([id,Icon,label]:any)=><button key={id} aria-pressed={tool===id||panel===id} onClick={()=>{chooseTool(id);setToolsOpen(false);}}><Icon size={20}/><span>{label}</span></button>)}</div>}
     <div className="editor-toolbar" role="toolbar" aria-label="Sayfa araçları"><div className="tool-scroll">
-      {[['photos',ImagePlus,'Fotoğraf'],['templates',LayoutTemplate,'Şablon'],['text',Type,'Metin'],['stickers',Sticker,'Çıkartma'],['pen',Pencil,'Kalem'],['paper',Palette,'Kâğıt'],['eraser',Eraser,'Silgi'],['select',MousePointer2,'Seç']].map(([id,Icon,label]:any)=><button key={id} className={(panel===id||tool===id)?'active':''} disabled={readOnly} onClick={()=>chooseTool(id)} title={label}><Icon size={20}/><span>{label}</span></button>)}
+      {[['photos',ImagePlus,'Fotoğraf'],['templates',LayoutTemplate,'Şablon'],['text',Type,'Metin'],['stickers',Sticker,'Çıkartma'],['pen',Pencil,'Kalem'],['paper',Palette,'Kâğıt'],['eraser',Eraser,'Silgi'],['select',MousePointer2,'Seç']].map(([id,Icon,label]:any)=><button key={id} className={'tool-'+id+((panelOpen&&panel===id||tool!=='select'&&tool===id)?' active':'')} aria-pressed={panelOpen&&panel===id||tool!=='select'&&tool===id} disabled={readOnly} onClick={()=>{chooseTool(id);setToolsOpen(false);}} title={label}><Icon size={20}/><span>{label}</span></button>)}
+      <button className="more-tools-button" aria-label="Diğer araçlar" aria-expanded={toolsOpen} aria-controls="extra-page-tools" disabled={readOnly} onClick={()=>setToolsOpen(v=>!v)}><Layers size={20}/><span>Diğer</span></button>
       </div><span className="toolbar-separator"/><button onClick={()=>undo()} disabled={readOnly||!history.current.past.length} title="Geri al"><Undo2 size={20}/><span>Geri al</span></button><button onClick={()=>undo(true)} disabled={readOnly||!history.current.future.length} title="Yinele"><Redo2 size={20}/><span>Yinele</span></button>
     </div>
     <footer className="editor-pages"><button className="icon-button small" disabled={spreads[0]?.id===spreadId} onClick={()=>void navigate(spreads[spreads.findIndex(s=>s.id===spreadId)-1].id)} aria-label="Önceki sayfa"><ChevronLeft/></button><select value={spreadId} onChange={e=>void navigate(e.target.value)} aria-label="Sayfa seç">{spreads.map(s=><option key={s.id} value={s.id}>{s.position===-1?'Kapak':`Sayfa ${s.position*2+1}–${s.position*2+2}`}</option>)}</select><button className="icon-button small" disabled={spreads.at(-1)?.id===spreadId} onClick={()=>void navigate(spreads[spreads.findIndex(s=>s.id===spreadId)+1].id)} aria-label="Sonraki sayfa"><ChevronRight/></button><button className="text-button" onClick={()=>void addSpread()}><Plus size={16}/>Sayfa ekle</button></footer>

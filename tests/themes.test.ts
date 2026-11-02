@@ -18,3 +18,30 @@ test('independent page materials and photo edges round-trip; malformed documents
 });
 test('legacy custom pages are preserved by reference and do not inherit a theme implicitly',()=>{const doc={...blankDoc(),elements:[newElement('text',{text:'Benim notum',font:'Caveat',size:32})]},spread={id:'manual',album_id:'a',position:0,revision:4,doc};assert.equal(resolveSpreads([spread],photos,'Başlık')[0],spread);assert.equal(doc.surfaces,undefined);});
 test('sticker packs retain 48 materials and isolate the five supplied cutouts',()=>{assert.equal(stickers.filter(s=>s.packId!=='supplied').length,48);assert.equal(stickers.filter(s=>s.packId==='supplied').length,5);assert.equal(new Set(stickers.map(s=>s.id)).size,53);for(const s of stickers.filter(s=>s.packId==='supplied'))assert.ok(s.src.includes('/supplied/'));});
+
+test('new themes use six distinct cover and spread compositions without losing any photo',()=>{
+  const covers=new Set(),spreads=new Set();
+  for(const design of designs){
+    const source=themeDocument(design.id);assert.equal(source.layoutVersion,2);
+    const cover=themedCover(photos,'Ekim',themeDocument(design.id,true)),spread=themedSpread(photos,source);
+    const geometry=(d:typeof spread)=>JSON.stringify(d.elements.filter(e=>e.type==='photo').map(({x,y,w,h,rotation})=>({x,y,w,h,rotation})));
+    covers.add(geometry(cover));spreads.add(geometry(spread));
+    for(const count of [1,2,3,4]){
+      const inputs=[...photos,{...photos[0],id:'fourth'}].slice(0,count),doc=themedSpread(inputs,source),placed=doc.elements.filter(e=>e.type==='photo');
+      assert.deepEqual(placed.map(e=>e.assetId),inputs.map(a=>a.id));assert.ok(validDoc(doc));
+      for(const e of placed){assert.ok(e.x>=0&&e.y>=0&&e.x+e.w<=2000&&e.y+e.h<=1250,design.id+' keeps prints on paper');}
+      assert.equal(doc.elements.some(e=>e.type==='text'),false);
+    }
+  }
+  assert.equal(covers.size,6);assert.equal(spreads.size,6);
+});
+
+test('unversioned automatic books retain their original layout; manual versioned pages stay untouched',()=>{
+  const source={...themeDocument('plain'),layoutVersion:undefined},doc=themedSpread(photos,source),first=doc.elements.find(e=>e.assetId==='portrait')!;
+  assert.equal(doc.layoutVersion,undefined);assert.equal(first.y,135);assert.equal(first.h,950);assert.equal(first.x+(first.w/2),500);
+  const cover=themedCover(photos,'Eski albüm',{...source,cover:true});
+  const original=cover.elements.find(e=>e.assetId==='portrait')!;assert.equal(original.y,95);assert.equal(original.h,475);
+  const manual={id:'saved',album_id:'a',position:0,revision:7,doc:{...themeDocument('collage'),autoLayout:false,elements:[newElement('photo',{assetId:'portrait',x:153,y:271,w:341,h:529,rotation:8})]}};
+  assert.equal(resolveSpreads([manual],photos,'Ekim')[0],manual);
+  assert.equal(validDoc({...manual.doc,layoutVersion:3}),false);
+});

@@ -15,7 +15,7 @@ export type PageElement = {
   frameStyle?: 'none'|'white'|'polaroid'|'torn';
   caption?: string; date?: string; captionFont?: FontFamily; captionSize?: number; captionColor?: string;
 };
-export type PageDoc = { version: 1; paper: Paper; cover: boolean; elements: PageElement[]; autoLayout?: boolean; texture?: 'plain' | 'dots' | 'lines'; coverLayout?: 'auto' | 'single' | 'collage' | 'plain'; designId?:DesignId; surfaces?:{left:PaperSurface;right?:PaperSurface} };
+export type PageDoc = { version: 1; paper: Paper; cover: boolean; elements: PageElement[]; autoLayout?: boolean; layoutVersion?: 2; texture?: 'plain' | 'dots' | 'lines'; coverLayout?: 'auto' | 'single' | 'collage' | 'plain'; designId?:DesignId; surfaces?:{left:PaperSurface;right?:PaperSurface} };
 export type Spread = { id: string; album_id: string; position: number; revision: number; doc: PageDoc; lock_owner?: string | null; lock_expires?: number };
 export type Asset = { id: string; album_id: string; kind: 'photo' | 'sticker'; filename: string; mime: string; width: number; height: number; created_by: string; ready: number; captured_on?:string|null; created_at?:number; deleted_at?:number|null; deleted_by?:string|null };
 export type Album = { id: string; title: string; description: string; visibility: 'shared' | 'personal'; owner_id: string; paper: Paper; design_id?:DesignId|null; created_at: number; updated_at: number; deleted_at?:number|null; deleted_by?:string|null; purpose?:'album'|'days'; photo_count?: number; cover_asset_id?: string; cover_doc?: PageDoc; cover_assets?: Pick<Asset, 'id'|'width'|'height'>[] };
@@ -75,6 +75,7 @@ export function validDoc(value: unknown): value is PageDoc {
   const d = value as PageDoc;
   if (d.version !== 1 || !Object.hasOwn(papers,d.paper) || typeof d.cover !== 'boolean' || !Array.isArray(d.elements) || d.elements.length > 1200) return false;
   if(d.autoLayout!==undefined&&typeof d.autoLayout!=='boolean')return false;
+  if(d.layoutVersion!==undefined&&d.layoutVersion!==2)return false;
   if(d.texture!==undefined&&!['plain','dots','lines'].includes(d.texture))return false;
   if(d.coverLayout!==undefined&&!['auto','single','collage','plain'].includes(d.coverLayout))return false;
   if(d.designId!==undefined&&!validDesign(d.designId))return false;

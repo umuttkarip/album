@@ -8,7 +8,7 @@ export type Turn = { id:number; from:HTMLCanvasElement; to:HTMLCanvasElement; di
 const H=1.25;
 function texture(source:HTMLCanvasElement,part:'left'|'right'|'full'='full') {
   const c=document.createElement('canvas');const half=part!=='full'&&source.width/source.height>1;c.width=half?source.width/2:source.width;c.height=source.height;
-  const ctx=c.getContext('2d')!,r=Math.min(c.width,c.height)*.024;ctx.beginPath();ctx.roundRect(0,0,c.width,c.height,half?(part==='left'?[r,0,0,r]:[0,r,r,0]):r);ctx.clip();ctx.drawImage(source,half&&part==='right'?c.width:0,0,c.width,c.height,0,0,c.width,c.height);
+  const ctx=c.getContext('2d')!,r=Math.min(c.width,c.height)*.012;ctx.beginPath();ctx.roundRect(0,0,c.width,c.height,half?(part==='left'?[r,0,0,r]:[0,r,r,0]):r);ctx.clip();ctx.drawImage(source,half&&part==='right'?c.width:0,0,c.width,c.height,0,0,c.width,c.height);
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.generateMipmaps=false;t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;return t;
 }
 class TexturePool{
@@ -49,7 +49,7 @@ function Scene({canvas,book,cover,turn,onDone,onLost,spanning}:{canvas:HTMLCanva
   const material=useMemo(()=>new THREE.ShaderMaterial({uniforms:{frontMap:{value:turn?.direction===-1?maps.cl:maps.cr},backMap:{value:turn?.direction===-1?maps.nr:maps.nl},progress:{value:0}},vertexShader:vertex,fragmentShader:fragment,side:THREE.DoubleSide,transparent:true,toneMapped:false}),[maps,turn?.direction]);
   useEffect(()=>()=>material.dispose(),[material]);
   useEffect(()=>{const lost=(e:Event)=>{e.preventDefault();onLost();};gl.domElement.addEventListener('webglcontextlost',lost);return()=>gl.domElement.removeEventListener('webglcontextlost',lost);},[gl,onLost]);
-  useEffect(()=>{invalidate();},[turn,size,invalidate]);
+  useEffect(()=>{invalidate();},[canvas,book,cover,spanning,turn,size,invalidate]);
   useEffect(()=>{done.current=-1;},[turn?.start]);
   useFrame(()=>{
     measure(gl.domElement,turn,geom.attributes.position.count,gl.info.memory.textures);
