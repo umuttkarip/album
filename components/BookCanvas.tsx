@@ -2,13 +2,24 @@
 import React, { useMemo, useEffect, useRef } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import {turnMetrics} from '../lib/turn-metrics';
 
 export type Turn = { id:number; from:HTMLCanvasElement; to:HTMLCanvasElement; direction:1|-1; sourceCover:boolean; targetCover:boolean; start:number; duration:number; fromP:number; toP:number; dragging?:boolean; progress?:number };
 const H=1.25;
 function texture(source:HTMLCanvasElement,part:'left'|'right'|'full'='full') {
   const c=document.createElement('canvas');const half=part!=='full'&&source.width/source.height>1;c.width=half?source.width/2:source.width;c.height=source.height;
   const ctx=c.getContext('2d')!,r=Math.min(c.width,c.height)*.024;ctx.beginPath();ctx.roundRect(0,0,c.width,c.height,half?(part==='left'?[r,0,0,r]:[0,r,r,0]):r);ctx.clip();ctx.drawImage(source,half&&part==='right'?c.width:0,0,c.width,c.height,0,0,c.width,c.height);
-  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=2;t.generateMipmaps=true;return t;
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.generateMipmaps=false;t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;return t;
+}
+class TexturePool{
+  private pages=new Map<HTMLCanvasElement,Map<string,THREE.CanvasTexture>>();builds=0;
+  get(source:HTMLCanvasElement,part:'left'|'right'|'full'){
+    if(source.width<=source.height)part='full';let page=this.pages.get(source);if(page)this.pages.delete(source);else page=new Map();this.pages.set(source,page);
+    let map=page.get(part);if(!map){map=texture(source,part);page.set(part,map);this.builds++;}
+    while(this.pages.size>4){const oldest=this.pages.keys().next().value!;this.release(this.pages.get(oldest)!);this.pages.delete(oldest);}return map;
+  }
+  private release(page:Map<string,THREE.CanvasTexture>){for(const map of page.values()){map.dispose();const canvas=map.image as HTMLCanvasElement;canvas.width=canvas.height=1;}}
+  clear(){for(const page of this.pages.values())this.release(page);this.pages.clear();}
 }
 const vertex=`varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`;
 const fragment=`uniform sampler2D frontMap; uniform sampler2D backMap; uniform float progress; varying vec2 vUv;
@@ -20,13 +31,16 @@ function Fold({spanning}:{spanning:boolean}){return <mesh position={[0,0,.003]}>
 function Scene({canvas,book,cover,turn,onDone,onLost,spanning}:{canvas:HTMLCanvasElement;book:boolean;cover:boolean;turn:Turn|null;onDone:(cancelled:boolean)=>void;onLost:()=>void;spanning:boolean}) {
   const {camera,size,invalidate,gl}=useThree();
   const turning=useRef<THREE.Mesh>(null),shadow=useRef<THREE.Mesh>(null),leftUnder=useRef<THREE.Mesh>(null),done=useRef(-1);
+  const measure=useMemo(turnMetrics,[]);
+  const pool=useMemo(()=>new TexturePool(),[]);
+  const clock=useRef({start:-1,at:0});
   const maps=useMemo(()=>{
     const source=turn?.from||canvas,target=turn?.to||canvas;
-    return {cl:texture(source,book&&!cover?'left':'full'),cr:texture(source,book&&!cover?'right':'full'),nl:texture(target,book&&!turn?.targetCover?'left':'full'),nr:texture(target,book&&!turn?.targetCover?'right':'full')};
+    return {cl:pool.get(source,book&&!cover?'left':'full'),cr:pool.get(source,book&&!cover?'right':'full'),nl:pool.get(target,book&&!turn?.targetCover?'left':'full'),nr:pool.get(target,book&&!turn?.targetCover?'right':'full')};
   },[canvas,turn?.from,turn?.to,book,cover,turn?.targetCover]);
-  useEffect(()=>()=>{Object.values(maps).forEach(t=>{t.dispose();const c=t.image as HTMLCanvasElement;c.width=c.height=1;});},[maps]);
+  useEffect(()=>()=>pool.clear(),[pool]);
   const geom=useMemo(()=>{
-    const g=new THREE.PlaneGeometry(1,H,40,10);g.translate(.5,0,0);const a=g.attributes.position.array as Float32Array;const uv=g.attributes.uv.array as Float32Array;
+    const g=new THREE.PlaneGeometry(1,H,40,1);g.translate(.5,0,0);const a=g.attributes.position.array as Float32Array;const uv=g.attributes.uv.array as Float32Array;
     if(turn?.direction===-1){for(let i=0;i<a.length;i+=3)a[i]*=-1;for(let i=0;i<uv.length;i+=2)uv[i]=1-uv[i];const indices=g.index!.array;for(let i=0;i<indices.length;i+=3){const b=indices[i+1];indices[i+1]=indices[i+2];indices[i+2]=b;}}
     return g;
   },[turn?.direction]);
@@ -38,13 +52,15 @@ function Scene({canvas,book,cover,turn,onDone,onLost,spanning}:{canvas:HTMLCanva
   useEffect(()=>{invalidate();},[turn,size,invalidate]);
   useEffect(()=>{done.current=-1;},[turn?.start]);
   useFrame(()=>{
+    measure(gl.domElement,turn,geom.attributes.position.count,gl.info.memory.textures);
+    gl.domElement.dataset.albumTextureBuilds=String(pool.builds);
     gl.domElement.dataset.albumTextures=String(gl.info.memory.textures); gl.domElement.dataset.albumGeometries=String(gl.info.memory.geometries); let p=0;
-    if(turn){if(turn.dragging)p=turn.progress||0;else{const t=Math.min(1,Math.max(0,(performance.now()-turn.start)/turn.duration));p=turn.fromP+(turn.toP-turn.fromP)*(1-Math.pow(1-t,3));if(t>=1&&done.current!==turn.id){done.current=turn.id;queueMicrotask(()=>onDone(turn.toP===0));}else if(t<1)invalidate();}}
+    if(turn){if(turn.dragging)p=turn.progress||0;else{const now=performance.now();if(clock.current.start!==turn.start)clock.current={start:turn.start,at:now};const t=Math.min(1,Math.max(0,(now-clock.current.at)/turn.duration));p=turn.fromP+(turn.toP-turn.fromP)*(1-Math.pow(1-t,3));if(t>=1&&done.current!==turn.id){done.current=turn.id;queueMicrotask(()=>onDone(turn.toP===0));}else if(t<1)invalidate();}}
     const cam=camera as THREE.OrthographicCamera,w=book?2:1;cam.left=-w/2;cam.right=w/2;cam.top=H/2;cam.bottom=-H/2;cam.position.x=book?(turn?(turn.sourceCover?.5*(1-p):turn.targetCover?.5*p:0):cover?.5:0):0;cam.updateProjectionMatrix();
     if(turning.current&&turn){
       const dir=turn.direction,curvature=(turn.sourceCover||turn.targetCover)?0:Math.sin(p*Math.PI)*1.1,a=geom.attributes.position.array as Float32Array;
       for(let i=0;i<a.length;i+=3){const x=Math.abs(original[i]),arc=curvature*x;a[i]=dir*(curvature>.0001?Math.sin(arc)/curvature:x);a[i+1]=original[i+1];a[i+2]=curvature>.0001?(1-Math.cos(arc))/curvature:0;}
-      geom.attributes.position.needsUpdate=true;geom.computeVertexNormals();turning.current.rotation.y=-dir*Math.PI*p;material.uniforms.progress.value=p;
+      geom.attributes.position.needsUpdate=true;turning.current.rotation.y=-dir*Math.PI*p;material.uniforms.progress.value=p;
       if(shadow.current)(shadow.current.material as THREE.MeshBasicMaterial).opacity=Math.sin(Math.PI*p)*.18;
     }
   });

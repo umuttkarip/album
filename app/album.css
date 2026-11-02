@@ -11,6 +11,8 @@
   text-rendering: optimizeLegibility;
 }
 * { box-sizing: border-box; }
+* { scrollbar-width:none; }
+*::-webkit-scrollbar { display:none;width:0;height:0; }
 html, body { margin: 0; min-height: 100%; overscroll-behavior: none; }
 body { font-size: 16px; line-height: 1.4; }
 button, input, select, textarea { font: inherit; }
@@ -509,8 +511,8 @@ legend { font-size: 13px; margin-bottom: 12px; }
 .archive-photo-image{position:relative;display:grid;place-items:center;aspect-ratio:4/5;background:#1b2131;border:2px solid #ffffff1a;border-radius:5px;overflow:hidden;transition:border-color .2s}
 .archive-photo-image img{width:100%;height:100%;object-fit:contain}
 .archive-photo:hover .archive-photo-image{border-color:#d8dcd3a0}
-.archive-photo.is-deleted .archive-photo-image{border:2px solid #df9f88;box-shadow:0 0 0 3px #df9f8812}
-.deleted-label{position:absolute;left:7px;bottom:7px;display:flex;align-items:center;gap:5px;padding:5px 8px;background:#6d3f33ed;color:#ffecdf;border:1px solid #f0c3ac66;border-radius:6px;font-size:11px}
+.archive-photo.is-deleted .archive-photo-image{border:2px solid #e65c64;box-shadow:0 0 0 3px #e65c641a}
+.deleted-label{position:absolute;left:7px;bottom:7px;display:flex;align-items:center;gap:5px;padding:5px 8px;background:#8b3038ed;color:#fff0ef;border:1px solid #f08d9566;border-radius:6px;font-size:11px}
 .archive-photo-caption{display:grid;grid-template-columns:1fr auto;gap:3px 8px;padding:10px 1px 0;font-size:12px}
 .archive-photo-caption time{color:var(--muted);font-variant-numeric:tabular-nums}
 .archive-photo-caption small{grid-column:1/-1;color:#b5bec6;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
