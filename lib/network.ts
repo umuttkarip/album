@@ -10,9 +10,11 @@ export function apiUrl(path: string) {
   return backend.replace(/\/$/, '') + '/api/' + path.replace(/^\/?api\//, '').replace(/^\//, '');
 }
 const TOKEN_KEY = 'album:session';
+// Only the legacy, explicitly separate API uses bearer auth. The canonical site uses HttpOnly cookies.
 let token = '';
-try { token = globalThis.sessionStorage?.getItem(TOKEN_KEY) || ''; } catch {}
+try { if (backend) token = globalThis.sessionStorage?.getItem(TOKEN_KEY) || ''; } catch {}
 export function setSession(value: string) {
+  if (!backend) return;
   token = value;
   try { if (value) sessionStorage.setItem(TOKEN_KEY, value); else sessionStorage.removeItem(TOKEN_KEY); } catch {}
 }

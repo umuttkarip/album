@@ -1,10 +1,11 @@
-import { currentUser, createSession, verifyPassword, sessionToken, hashToken, expiredCookie, type AlbumEnv } from './auth';
+import { currentUser, createSession, renewSession, verifyPassword, sessionToken, hashToken, expiredCookie, type AlbumEnv } from './auth';
 import { blankDoc, canRead, canEdit, validDoc, papers, type Album, type User, type PageDoc } from '../lib/model';
 import { isAutomatic } from '../lib/composition';
 import { themeDocument } from '../lib/themes';
 import { validDesign, type DesignId } from '../lib/design';
 import { DAYS_ALBUM_ID,validDay,validMonth,type LibraryPhoto } from '../lib/photo-library';
 import {applyAlbumDesign} from './album-design';
+import {insertSpreads} from './insert-spreads';
 
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 function fail(status: number, message: string): never { throw new ApiError(status,message); }
@@ -56,7 +57,11 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
     }
     const u = await currentUser(req,env); if (!u) fail(401,'Devam etmek için giriş yap.');
     if (path[0] === 'auth') {
-      if (path[1] === 'me') return json({user:u});
+      if (path[1] === 'me' && method === 'GET') { const cookie=await renewSession(req,env); return json({user:u},200,cookie?{'Set-Cookie':cookie}:{}); }
+      if (path[1] === 'onboarding' && path[2] === 'claim' && method === 'POST') {
+        const row=await env.DB.prepare('INSERT INTO user_preferences(user_id,onboarding_seen_at) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING RETURNING user_id').bind(u.id,Date.now()).first();
+        return json({show:!!row});
+      }
       if (path[1] === 'logout' && method === 'POST') { await env.DB.prepare('DELETE FROM sessions WHERE token_hash=?').bind(hashToken(sessionToken(req))).run(); return json({ok:true},200,{'Set-Cookie':expiredCookie(req)}); }
     }
     if(path[0]==='photos'&&path.length===1&&method==='GET'){
@@ -137,7 +142,21 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         const now=Date.now();const r=await env.DB.prepare('UPDATE albums SET deleted_at=?,deleted_by=?,updated_at=? WHERE id=? AND updated_at=? AND deleted_at IS NULL RETURNING id').bind(now,u.id,now,a.id,a.updated_at).first();if(!r)fail(409,'Albüm değişti. Yeniden kontrol et.');
         return json({ok:true});
       }
-      if (path[2] === 'spreads' && method === 'POST') {
+      if (path[2] === 'spreads' && path[3] === 'insert' && path.length === 4 && method === 'POST') {
+        const b=await body(req);
+        if(typeof b.beforeId!=='string'||!Number.isSafeInteger(b.updatedAt)||!Array.isArray(b.docs)||b.docs.length<1||b.docs.length>10||b.docs.some((d:unknown)=>!validDoc(d)||(d as PageDoc).cover))fail(400,'Sayfaları ve albüm sürümünü kontrol et.');
+        const before=await env.DB.prepare('SELECT * FROM spreads WHERE id=? AND album_id=? AND position>=0').bind(b.beforeId,a.id).first<Row>();
+        if(!before)fail(404,'Eklenecek konum bulunamadı.');
+        for(const doc of b.docs)await checkDocAssets(env,doc,a.id);
+        const inserted=await insertSpreads(env.DB,a.id,b.updatedAt,before.position,b.docs);
+        if(!inserted){
+          const locked=await env.DB.prepare('SELECT id FROM spreads WHERE album_id=? AND position>=? AND lock_expires>? LIMIT 1').bind(a.id,before.position,Date.now()).first();
+          if(locked)fail(423,'Bir sayfa düzenleniyor. Düzenleme bittikten sonra yeniden dene.');
+          fail(409,'Albüm değişti. Yeniden açıp sayfaları ekle.');
+        }
+        return json({ids:inserted},201);
+      }
+      if (path[2] === 'spreads' && path.length === 3 && method === 'POST') {
         const b=await body(req), d=b.doc || {...(a.design_id?themeDocument(a.design_id):blankDoc(a.paper)),autoLayout:false}; if(!validDoc(d) || d.cover) fail(400,'Geçersiz sayfa.'); await checkDocAssets(env,d,a.id);
         const id=crypto.randomUUID();
         await env.DB.prepare('INSERT INTO spreads(id,album_id,position,doc,updated_at) SELECT ?,?,COALESCE(MAX(position),-1)+1,?,? FROM spreads WHERE album_id=?').bind(id,a.id,JSON.stringify(d),Date.now(),a.id).run();

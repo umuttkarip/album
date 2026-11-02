@@ -1,4 +1,4 @@
-name: GitHub Pages
+name: Verify Album and redirect Pages
 on:
   push:
     branches: [main]
@@ -23,18 +23,22 @@ jobs:
       - run: npm test
       - run: npm run build
         env:
-          ALBUM_API_BASE: ${{ vars.ALBUM_API_BASE }}
-          ALBUM_PUBLIC_BASE: /album/
+          ALBUM_PUBLIC_BASE: /
+          ALBUM_SAME_ORIGIN: '1'
       - name: Verify private API
         run: node independent/probe-api.mjs
         env:
-          ALBUM_API_BASE: ${{ vars.ALBUM_API_BASE }}
+          ALBUM_API_BASE: https://album.umuttkarip.workers.dev
       - name: Verify built assets
         run: node independent/probe-build.mjs
+        env:
+          ALBUM_PUBLIC_BASE: /
+      - name: Prepare canonical site redirect
+        run: node independent/build-redirect.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web
+          path: .local/redirect-public
   deploy:
     needs: build
     runs-on: ubuntu-latest

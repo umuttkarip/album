@@ -1,3 +1,19 @@
+.usage-tour { position:fixed; z-index:90; right:24px; bottom:max(24px,env(safe-area-inset-bottom)); width:min(380px,calc(100vw - 32px)); max-height:calc(100dvh - 32px); overflow:auto; padding:16px 22px 22px; border:1px solid #d6dbd0; border-radius:16px; color:var(--ink); background:var(--panel); box-shadow:0 18px 55px #080d195c; color-scheme:light; --focus:var(--action); }
+.tour-top { display:flex; align-items:center; justify-content:space-between; min-height:36px; color:#66716e; font-size:12px; font-variant-numeric:tabular-nums; }
+.tour-top .icon-button { width:44px; height:44px; margin-right:-10px; }
+.tour-copy h2 { margin:10px 0 12px; font-size:22px; line-height:1.25; font-weight:500; }
+.tour-copy p { color:#525f5d; font-size:15px; line-height:1.55; }
+.tour-example { min-height:82px; display:flex; align-items:center; gap:9px; padding:14px 0; color:#46635e; border-bottom:1px solid var(--panel-line); font-size:12px; }
+.tour-example i { flex:1; }
+.tour-create { gap:24px; }
+.tour-create span { display:flex; align-items:center; gap:8px; }
+.tour-create > svg { margin-left:auto; }
+.tour-days { gap:8px; }
+.tour-actions { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-top:24px; }
+.tour-actions .text-button { display:flex; align-items:center; gap:6px; min-height:44px; padding:0 4px; color:#52615b; }
+.tour-actions .button.primary { min-width:112px; background:var(--action); color:#f6f4ed; }
+@media(max-width:600px) { .usage-tour { right:16px; bottom:max(16px,env(safe-area-inset-bottom)); padding:12px 20px 20px; } }
+@media(max-height:430px) { .usage-tour { right:16px; bottom:16px; padding:8px 18px 14px; width:380px; } .tour-example { min-height:52px;padding:8px 0; } .tour-copy h2 { font-size:20px;margin:6px 0; } .tour-actions { margin-top:12px; } }
 :root {
   --desk: #24283b; --desk-deep: #202432; --surface: #30364a;
   --text: #f5f2e9; --muted: #c0c1cb; --line: #ffffff14;

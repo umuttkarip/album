@@ -9,7 +9,8 @@
     "build": "vite build --config vite.pages.config.ts",
     "test": "tsx --test tests/*.test.ts",
     "dev:api": "wrangler dev --config wrangler.album.jsonc --local --persist-to .wrangler/independent --ip 127.0.0.1 --port 8787",
-    "deploy:api": "wrangler deploy --config wrangler.album.jsonc"
+    "deploy:api": "wrangler deploy --config wrangler.album.jsonc",
+    "deploy:site": "node independent/deploy-site.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "^9.3.0",
