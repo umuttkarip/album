@@ -3,37 +3,25 @@ import { Plus, ChevronDown, LogOut, ArrowUpRight } from 'lucide-react';
 import type { Album, User } from '../lib/model';
 import { assetUrl } from '../lib/model';
 import { albumCover,resolveSpreads } from '../lib/composition';
-import { paintDoc,paintView,readingViews,type ReadingView } from '../lib/render';
+import { readingViews,type ReadingView } from '../lib/render';
 import {request} from '../lib/client';
-import {bookStyle} from '../lib/book-style';
+import {bookStyle,paperStyle} from '../lib/book-style';
+import PagePreview from './PagePreview';
 import type {Spread,Asset} from '../lib/model';
 import SiteHeader,{type Section} from './SiteHeader';
 
 function Cover({ album }: { album: Album }) {
-  const ref = useRef<HTMLCanvasElement>(null),host=useRef<HTMLDivElement>(null),[leaves,setLeaves]=useState<ReadingView[]>([]);
+  const host=useRef<HTMLDivElement>(null),[leaves,setLeaves]=useState<ReadingView[]>([]);
   const doc=React.useMemo(()=>albumCover(album),[album]);
-  useEffect(() => {
-    let active = true;
-    void paintDoc(doc, 640).then(canvas => {
-      if (active && ref.current) { ref.current.width = canvas.width; ref.current.height = canvas.height; ref.current.getContext('2d')!.drawImage(canvas, 0, 0); }
-      canvas.width = canvas.height = 1;
-    });
-    return () => { active = false; };
-  }, [doc]);
   useEffect(()=>{
     let active=true;setLeaves([]);
     const observer=new IntersectionObserver(entries=>{if(!entries.some(e=>e.isIntersecting))return;observer.disconnect();void request<{spreads:Spread[];assets:Asset[]}>(`albums/${album.id}`).then(data=>{if(active)setLeaves(readingViews(resolveSpreads(data.spreads,data.assets,album.title),'single').filter(v=>v.region!=='cover').slice(0,2));}).catch(()=>{});},{rootMargin:'100px'});
     if(host.current)observer.observe(host.current);return()=>{active=false;observer.disconnect();};
   },[album.id,album.updated_at,album.title]);
-  return <div className="album-book" ref={host} style={bookStyle(doc)}>
-    {leaves.map((view,i)=><span className={'photo-leaf leaf-'+i} key={view.key}><LeafPreview view={view}/></span>)}
-    <span className="book-pages-edge"/><canvas ref={ref}/><span className="book-spine"/><span className="cover-sheen"/>
+  return <div className="album-book" ref={host} style={{...bookStyle(doc),...(leaves[0]?paperStyle(leaves[0].spread.doc):{})}}>
+    {leaves.map((view,i)=><span className={'photo-leaf leaf-'+i} key={view.key} style={paperStyle(view.spread.doc,view.region==='right'?'right':'left')}><PagePreview doc={view.spread.doc} view={view} width={200}/></span>)}
+    <span className="book-pages-edge"/><PagePreview doc={doc} width={640}/><span className="book-spine"/><span className="cover-sheen"/>
   </div>;
-}
-function LeafPreview({view}:{view:ReadingView}){
-  const ref=useRef<HTMLCanvasElement>(null);
-  useEffect(()=>{let active=true;void paintView(view,'single',200).then(c=>{if(active&&ref.current){ref.current.width=c.width;ref.current.height=c.height;ref.current.getContext('2d')!.drawImage(c,0,0);}c.width=c.height=1;});return()=>{active=false;};},[view]);
-  return <canvas ref={ref}/>;
 }
 
 export default function Library({ user, albums, filter, onFilter, onNew, onAlbum, onLogout,onSection, busy }: {

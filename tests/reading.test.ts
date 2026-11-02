@@ -28,8 +28,15 @@ test('landscape fits both page modes into short phones without changing the docu
 test('paper stacks contain distinct physical faces on the correct sides of an open spread',()=>{
   const spreads=[spread('cover',-1,blankDoc('ivory',true)),spread('one',0,ordinary),spread('wide',1,panorama),spread('last',2,ordinary)];
   const current=readingViews(spreads,'book')[2],stacks=physicalPageStacks(spreads,current);
-  assert.deepEqual(stacks.left.map(v=>v.label),['2','1']);assert.deepEqual(stacks.right.map(v=>v.label),['5','6']);
+  assert.deepEqual(stacks.left.map(v=>v.label),['1']);assert.deepEqual(stacks.right.map(v=>v.label),['6']);
   assert.equal(stacks.left.concat(stacks.right).some(v=>v.spread.id==='wide'),false);
   const cover=physicalPageStacks(spreads,readingViews(spreads,'single')[0]);assert.equal(cover.left.length,0);assert.deepEqual(cover.right.map(v=>v.label),['1','2']);
+  const openCover=physicalPageStacks(spreads,readingViews(spreads,'book')[0],'book');assert.deepEqual(openCover.right.map(v=>v.label),['2','4']);
   const last=physicalPageStacks(spreads,readingViews(spreads,'book').at(-1)!);assert.equal(last.right.length,0);assert.ok(last.leftDepth>cover.leftDepth);
+});
+test('open book previews show the same colored face that will appear underneath a forward or backward turn',()=>{
+  const spreads=Array.from({length:5},(_,i)=>spread('p'+i,i,{...blankDoc(),surfaces:{left:{color:'#'+String(i+1).repeat(6),pattern:'plain'},right:{color:'#'+String(i+5).repeat(6),pattern:'plain'}}}));
+  const current=readingViews(spreads,'book')[2],stack=physicalPageStacks(spreads,current,'book');
+  assert.deepEqual(stack.right.map(v=>[v.region,v.spread.doc.surfaces!.right!.color]),[['right','#888888'],['right','#999999']]);
+  assert.deepEqual(stack.left.map(v=>[v.region,v.spread.doc.surfaces!.left.color]),[['left','#222222'],['left','#111111']]);
 });

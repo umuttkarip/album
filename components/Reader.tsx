@@ -2,13 +2,14 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { ArrowLeft, BookOpen, RectangleVertical, ChevronLeft, ChevronRight, Pencil, Plus, Grid2X2, X, MoreHorizontal, ImagePlus, LoaderCircle,Smartphone } from 'lucide-react';
 import { canEdit, spansCenter, type Album, type Spread, type Asset, type User } from '../lib/model';
-import { readingViews, paintView, hitPhoto, type ReadingView } from '../lib/render';
+import { readingViews, hitPhoto, type ReadingView } from '../lib/render';
 import { resolveSpreads } from '../lib/composition';
 import type { Turn } from './BookCanvas';
 import ViewTransition,{type ViewMorph} from './ViewTransition';
 import {readingMode,requiresOpenBook,savedViewIndex,readingResolution,readingPreferenceKey,initialReadingMode,readerPageSize,physicalPageStacks,type ReadingMode} from '../lib/reading';
 import {createReaderRenderer} from '../lib/reader-renderer';
-import {bookStyle} from '../lib/book-style';
+import {bookStyle,paperStyle} from '../lib/book-style';
+import PagePreview from './PagePreview';
 const BookCanvas=lazy(()=>import('./BookCanvas'));
 function Flat({canvas}:{canvas:HTMLCanvasElement}){const ref=useRef<HTMLCanvasElement>(null);useEffect(()=>{const c=ref.current!;c.width=canvas.width;c.height=canvas.height;c.getContext('2d')!.drawImage(canvas,0,0);},[canvas]);return <canvas ref={ref} className="flat-page"/>;}
 export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,onEdit,onPhoto,onDetails,navigation}:{album:Album;spreads:Spread[];assets:Asset[];user:User;onBack:()=>void;onEdit:(id:string,side?:'left'|'right'|'full')=>void;onPhoto:(id:string)=>void;onDetails:()=>void;navigation?:React.ReactNode}) {
@@ -24,7 +25,7 @@ export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,o
   const current=views[Math.min(index,views.length-1)],motionRef=useRef<Turn|null>(null),pointer=useRef<{x:number;y:number;time:number;lastX:number;dragged:boolean;loading:boolean;up:boolean;modeChange:boolean}|null>(null),frame=useRef<HTMLDivElement>(null),[frameSize,setFrameSize]=useState({w:700,h:600});
   const mode=readingMode(current,preference),forcedBook=requiresOpenBook(current.spread.doc);
   const coverDoc=spreads.find(s=>s.doc.cover)?.doc||current.spread.doc;
-  const stacks=useMemo(()=>physicalPageStacks(spreads,current),[spreads,current]);
+  const stacks=useMemo(()=>physicalPageStacks(spreads,current,mode),[spreads,current,mode]);
   function displaySize(value:ReadingMode){return readerPageSize(frameSize,value,landscape);}
   useEffect(()=>{const m=matchMedia('(prefers-reduced-motion: reduce)'),update=()=>setReduced(m.matches);update();m.addEventListener('change',update);return()=>m.removeEventListener('change',update);},[]);
   const ensure=useCallback((v:ReadingView)=>{const targetMode=readingMode(v,preference),size=readerPageSize(frameSize,targetMode,landscape),width=readingResolution({w:size.w+40,h:size.h+40},targetMode,window.devicePixelRatio);return renderer.view(v,targetMode,width);},[preference,frameSize.w,frameSize.h,landscape]);
@@ -74,7 +75,7 @@ export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,o
     <div className="reader-layout" ref={frame}>
     <main className={'reader-stage '+mode} style={{width:w,height:h}}>
       <div className={'reader-stack '+(mode==='book'&&current.region!=='cover'?'spread-stack':'single-stack')} style={{width:current.region==='cover'&&mode==='book'?w/2:w,height:h,'--left-depth':stacks.leftDepth+'px','--right-depth':stacks.rightDepth+'px'} as React.CSSProperties} aria-hidden="true">
-        <span className="stack-cover-board"/>{(mode==='book'&&current.region!=='cover'?(['left','right'] as const):(['right'] as const)).map(side=><div className={'page-stack '+side} key={side}><span className="stack-paper-block"/>{stacks[side].map((v,i)=><span className={'stack-leaf leaf-'+i} key={v.key}><LeafPage view={v}/></span>)}</div>)}
+        <span className="stack-cover-board"/>{(mode==='book'&&current.region!=='cover'?(['left','right'] as const):(['right'] as const)).map(side=><div className={'page-stack '+side} key={side} style={paperStyle(stacks[side][0]?.spread.doc||current.spread.doc,stacks[side][0]?.region==='right'?'right':'left')}><span className="stack-paper-block"/>{stacks[side].map((v,i)=><span className={'stack-leaf leaf-'+i} key={v.key} style={paperStyle(v.spread.doc,v.region==='right'?'right':'left')}><PagePreview doc={v.spread.doc} view={v} width={240}/></span>)}</div>)}
       </div>
       {morph&&<ViewTransition key={morph.id} value={morph} onDone={()=>setMorph(null)}/>}
       <div className={'book-frame '+mode+' '+(current.region==='cover'?'is-cover':'')+' '+(loading?'is-loading':'')+' '+(morph?'is-morphing':'')} style={{width:w,height:h}} onPointerDown={down} onPointerMove={e=>void move(e)} onPointerUp={up} onPointerCancel={cancel}>
@@ -89,6 +90,4 @@ export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,o
     {thumbnails&&<div className="page-filmstrip" style={{bottom:Math.max(12,(frameSize.h-h-76)/2+76)}}><div className="filmstrip-title"><span>Sayfalar</span><button className="icon-button small" aria-label="Önizlemeleri kapat" onClick={()=>setThumbnails(false)}><X size={17}/></button></div><div className="filmstrip-scroll">{views.map((v,i)=><button className={'filmstrip-item '+(i===index?'active':'')} key={v.key} onClick={()=>{void go(i,true);setThumbnails(false);}}><MiniPage view={v}/><span>{v.label}</span></button>)}</div></div>}
   </div>;
 }
-function MiniPage({view}:{view:ReadingView}){const ref=useRef<HTMLCanvasElement>(null),host=useRef<HTMLSpanElement>(null);useEffect(()=>{let live=true;const observer=new IntersectionObserver(entries=>{if(!entries.some(e=>e.isIntersecting))return;observer.disconnect();void paintView(view,'single',80).then(c=>{if(live&&ref.current){ref.current.width=80;ref.current.height=100;ref.current.getContext('2d')!.drawImage(c,0,0,80,100);}c.width=c.height=1;});});if(host.current)observer.observe(host.current);return()=>{live=false;observer.disconnect();};},[view]);return <span ref={host}><canvas ref={ref}/></span>;}
-
-function LeafPage({view}:{view:ReadingView}){const ref=useRef<HTMLCanvasElement>(null);useEffect(()=>{let active=true;void paintView(view,'single',240).then(c=>{if(active&&ref.current){ref.current.width=240;ref.current.height=300;ref.current.getContext('2d')!.drawImage(c,0,0,240,300);}c.width=c.height=1;});return()=>{active=false;};},[view]);return <canvas ref={ref}/>;}
+function MiniPage({view}:{view:ReadingView}){return <span style={paperStyle(view.spread.doc,view.region==='right'?'right':'left')}><PagePreview doc={view.spread.doc} view={view} width={80} lazy/></span>;}

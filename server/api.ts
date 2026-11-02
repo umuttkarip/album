@@ -4,6 +4,7 @@ import { isAutomatic } from '../lib/composition';
 import { themeDocument } from '../lib/themes';
 import { validDesign, type DesignId } from '../lib/design';
 import { DAYS_ALBUM_ID,validDay,validMonth,type LibraryPhoto } from '../lib/photo-library';
+import {applyAlbumDesign} from './album-design';
 
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 function fail(status: number, message: string): never { throw new ApiError(status,message); }
@@ -113,6 +114,17 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         if(b.designId!==undefined&&!validDesign(b.designId))fail(400,'Tasarımı kontrol et.');
         if(b.visibility!==undefined&&!['shared','personal'].includes(b.visibility))fail(400,'Albüm türünü kontrol et.');
         if(b.visibility!==undefined&&b.visibility!==a.visibility&&a.owner_id!==u.id)fail(403,'Albüm türünü yalnız sahibi değiştirebilir.');
+        if(b.applyDesignToExisting!==undefined&&typeof b.applyDesignToExisting!=='boolean')fail(400,'Tasarım seçimini kontrol et.');
+        if(b.applyDesignToExisting){
+          if(!validDesign(b.designId)||!Number.isSafeInteger(b.updatedAt))fail(400,'Tasarımı ve albüm sürümünü kontrol et.');
+          const applied=await applyAlbumDesign(env.DB,a,{title,description,designId:b.designId,visibility:b.visibility||a.visibility,updatedAt:b.updatedAt});
+          if(!applied){
+            const locked=await env.DB.prepare('SELECT id FROM spreads WHERE album_id=? AND lock_expires>? LIMIT 1').bind(a.id,Date.now()).first();
+            if(locked)fail(423,'Bir sayfa düzenleniyor. Düzenleme bittikten sonra yeniden dene.');
+            fail(409,'Albüm değişti. Yeniden açıp tasarımı uygula.');
+          }
+          return json({ok:true});
+        }
         await env.DB.prepare('UPDATE albums SET title=?,description=?,design_id=?,visibility=?,updated_at=? WHERE id=?').bind(title,description,b.designId||a.design_id||null,b.visibility||a.visibility,Date.now(),a.id).run(); return json({ok:true});
       }
       if(path.length===2&&method==='DELETE'){

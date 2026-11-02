@@ -1,5 +1,6 @@
-import { papers, photoBox, captionText, type PageDoc, type PageElement } from './model';
+import { photoBox, captionText, type PageDoc, type PageElement } from './model';
 import type { PaperSurface } from './design';
+import { paperSurface } from './paper';
 export function drawSurface(ctx:CanvasRenderingContext2D,s:PaperSurface,x:number,w:number,h=1250){
   ctx.save();ctx.beginPath();ctx.rect(x,0,w,h);ctx.clip();ctx.fillStyle=s.color;ctx.fillRect(x,0,w,h);const dark=parseInt(s.color.slice(1,3),16)<100,ink=s.ink||(dark?'#ffffff':'#485267');ctx.fillStyle=ink;ctx.strokeStyle=ink;
   if(s.pattern==='grain'||s.pattern==='linen'){ctx.globalAlpha=dark?.035:.028;for(let n=0;n<2300;n++)ctx.fillRect(x+(n*641)%w,(n*347)%h,1.2,n%3?1.2:2.5);}
@@ -10,9 +11,8 @@ export function drawSurface(ctx:CanvasRenderingContext2D,s:PaperSurface,x:number
   ctx.restore();
 }
 export function drawPaper(ctx:CanvasRenderingContext2D,doc:PageDoc,width:number){
-  const fallback:PaperSurface={color:papers[doc.paper],pattern:doc.texture==='dots'?'dots':doc.texture==='lines'?'lines':'grain'};
-  if(doc.cover)drawSurface(ctx,doc.surfaces?.left||fallback,0,width);
-  else {drawSurface(ctx,doc.surfaces?.left||fallback,0,1000);drawSurface(ctx,doc.surfaces?.right||doc.surfaces?.left||fallback,1000,1000);}
+  if(doc.cover)drawSurface(ctx,paperSurface(doc),0,width);
+  else {drawSurface(ctx,paperSurface(doc,'left'),0,1000);drawSurface(ctx,paperSurface(doc,'right'),1000,1000);}
 }
 /** A continuous image stays intact; light and contact shading describe two paper faces. */
 export function drawBookFold(ctx:CanvasRenderingContext2D){

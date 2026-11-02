@@ -2,6 +2,7 @@ import { PAGE_H, PAGE_W, SPREAD_W, papers, photoBox, assetUrl, spansCenter, capt
 import { stickers } from './stickers';
 import { fetchAsset, isPrivateAsset } from './network';
 import { drawPaper, drawPhoto,drawBookFold } from './materials';
+import {paperSurface} from './paper';
 const cache = new Map<string,Promise<HTMLImageElement>>();
 const imageBytes=new Map<string,number>();
 function trimImages(){let bytes=[...imageBytes.values()].reduce((a,b)=>a+b,0);for(const key of cache.keys()){if(bytes<=48*1024*1024&&cache.size<=36)break;const size=imageBytes.get(key);if(size===undefined)continue;bytes-=size;cache.delete(key);imageBytes.delete(key);}}
@@ -49,13 +50,26 @@ export function readingViews(spreads:Spread[], mode:'single'|'book'): ReadingVie
     {key:s.id+':right',spread:s,region:'right' as const,label:String(s.position*2+2)},
   ]);
 }
-export async function paintView(view:ReadingView,mode:'single'|'book',pixelWidth=mode==='book'&&view.region!=='cover'?1600:1000,source=(doc:PageDoc,width:number)=>paintDoc(doc,width)) {
-  const sliced=view.region==='left'||view.region==='right',doc=await source(view.spread.doc,sliced?pixelWidth*2:pixelWidth);
+function sliceView(view:ReadingView,mode:'single'|'book',pixelWidth:number,doc:HTMLCanvasElement){
   if(view.region==='cover'||(view.region==='full'&&mode==='book'))return doc;
-  const c=document.createElement('canvas');c.width=pixelWidth;c.height=Math.round(pixelWidth*1.25);const ctx=c.getContext('2d')!;ctx.fillStyle=view.spread.doc.surfaces?.left.color||papers[view.spread.doc.paper];ctx.fillRect(0,0,c.width,c.height);
+  const c=document.createElement('canvas');c.width=pixelWidth;c.height=Math.round(pixelWidth*1.25);const ctx=c.getContext('2d')!;ctx.fillStyle=paperSurface(view.spread.doc,view.region==='right'?'right':'left').color;ctx.fillRect(0,0,c.width,c.height);
   if(view.region==='full')ctx.drawImage(doc,0,pixelWidth*.3125,pixelWidth,pixelWidth*.625);
   else ctx.drawImage(doc,view.region==='right'?doc.width/2:0,0,doc.width/2,doc.height,0,0,c.width,c.height);
   return c;
+}
+/** Paint the actual paper before asynchronous photos/fonts arrive, never white placeholders. */
+export function paintPreviewPaper(doc:PageDoc,pixelWidth:number,view?:ReadingView){
+  const width=view&&(view.region==='left'||view.region==='right')?pixelWidth*2:pixelWidth;
+  const c=document.createElement('canvas'),logical=doc.cover?PAGE_W:SPREAD_W;c.width=width;c.height=Math.round(width*PAGE_H/logical);
+  const ctx=c.getContext('2d')!;ctx.scale(width/logical,width/logical);paintPaper(ctx,doc,logical);if(!doc.cover)drawBookFold(ctx);
+  const result=view?sliceView(view,'single',pixelWidth,c):c;if(result!==c)c.width=c.height=1;return result;
+}
+export async function paintView(view:ReadingView,mode:'single'|'book',pixelWidth=mode==='book'&&view.region!=='cover'?1600:1000,source:(doc:PageDoc,width:number)=>Promise<HTMLCanvasElement>=paintDoc) {
+  const sliced=view.region==='left'||view.region==='right',doc=await source(view.spread.doc,sliced?pixelWidth*2:pixelWidth);
+  const result=sliceView(view,mode,pixelWidth,doc);
+  // Cached sources are owned by the reader renderer; only release our own intermediate.
+  if(result!==doc&&source===paintDoc)doc.width=doc.height=1;
+  return result;
 }
 export function hitPhoto(doc:PageDoc,x:number,y:number) {
   return [...doc.elements].reverse().find(e=>{if(e.type!=='photo')return false;const r=-e.rotation*Math.PI/180,dx=x-e.x,dy=y-e.y,px=dx*Math.cos(r)-dy*Math.sin(r),py=dx*Math.sin(r)+dy*Math.cos(r);return px>=0&&px<=e.w&&py>=0&&py<=e.h;});

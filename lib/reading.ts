@@ -9,11 +9,15 @@ export function readerPageSize(frame:{w:number;h:number},mode:ReadingMode,landsc
   const w=Math.max(80,Math.min(frame.w-edge,(frame.h-reserve-(rails?48:landscape?12:40))*aspect));
   return {w,h:w/aspect};
 }
-export function physicalPageStacks(spreads:Spread[],current:ReadingView){
+export function physicalPageStacks(spreads:Spread[],current:ReadingView,mode:ReadingMode=current.region==='full'?'book':'single'){
   const faces=spreads.filter(s=>!s.doc.cover).flatMap<ReadingView>(s=>(['left','right'] as const).map((region,i)=>({spread:s,region,key:s.id+':'+region,label:String(s.position*2+1+i)})));
   const first=current.region==='cover'?0:Math.max(0,faces.findIndex(v=>v.spread.id===current.spread.id));
   const start=first+(current.region==='right'?1:0),end=current.region==='cover'?0:first+(current.region==='full'?2:current.region==='right'?2:1);
-  return {left:faces.slice(Math.max(0,start-2),start).reverse(),right:faces.slice(end,end+2),leftDepth:current.region==='cover'?0:Math.min(10,1.5+start*.16),rightDepth:Math.min(10,Math.max(0,faces.length-end)*.16+1.5)};
+  // A right-hand turn reveals the next right face underneath; the next left face
+  // is the reverse of the turning sheet, not a page lying behind the book.
+  const left=mode==='book'?faces.slice(0,first).filter(v=>v.region==='left').reverse().slice(0,2):faces.slice(Math.max(0,start-2),start).reverse();
+  const right=mode==='book'?faces.slice(end).filter(v=>v.region==='right').slice(0,2):faces.slice(end,end+2);
+  return {left,right,leftDepth:current.region==='cover'?0:Math.min(10,1.5+start*.16),rightDepth:Math.min(10,Math.max(0,faces.length-end)*.16+1.5)};
 }
 export function readingResolution(frame:{w:number;h:number},mode:ReadingMode,dpr=1){const aspect=mode==='book'?1.6:.8,css=Math.max(100,Math.min(frame.w-40,(frame.h-40)*aspect));return Math.min(mode==='book'?1792:1024,Math.max(256,Math.ceil(css*Math.min(1.5,Math.max(1,dpr))/128)*128));}
 export function requiresOpenBook(doc:PageDoc){
