@@ -1,6 +1,6 @@
 import { PAGE_H, PAGE_W, SPREAD_W, papers, photoBox, assetUrl, spansCenter, captionText, type PageDoc, type PageElement, type Spread } from './model';
 import { stickers } from './stickers';
-import { fetchAsset, isPrivateAsset } from './network';
+import { fetchAsset, isPrivateAsset,clearPrivateAssets } from './network';
 import { drawPaper, drawPhoto,drawBookFold } from './materials';
 import {paperSurface} from './paper';
 const cache = new Map<string,Promise<HTMLImageElement>>();
@@ -11,7 +11,8 @@ export function imageFor(src: string): Promise<HTMLImageElement> {
   const promise=(async()=>{const privateImage=isPrivateAsset(src),url=privateImage?URL.createObjectURL(await fetchAsset(src)):src;try{return await new Promise<HTMLImageElement>((resolve,reject)=>{const img=new Image();img.decoding='async';img.onload=()=>{void img.decode().catch(()=>{}).then(()=>resolve(img));};img.onerror=()=>reject(new Error('Görüntü yüklenemedi.'));img.src=url;});}finally{if(privateImage)URL.revokeObjectURL(url);}})().then(img=>{if(cache.get(src)===promise){imageBytes.set(src,img.naturalWidth*img.naturalHeight*4);trimImages();}return img;}).catch(e=>{if(cache.get(src)===promise){cache.delete(src);imageBytes.delete(src);}throw e;});
   cache.set(src,promise);return promise;
 }
-export function clearImages(){cache.clear();imageBytes.clear();}
+export function clearImages(){cache.clear();imageBytes.clear();clearPrivateAssets();}
+export const photoVariant=(requiredPixels:number)=>requiredPixels<=320?'thumb':requiredPixels<=1024?'screen':'display';
 export function elementSrc(e: PageElement,variant='display') {return e.assetId?assetUrl(e.assetId,variant):stickers.find(s=>s.id===e.stickerId)?.src||'';}
 export function paintPaper(ctx:CanvasRenderingContext2D,doc:PageDoc,width=doc.cover?PAGE_W:SPREAD_W){
   drawPaper(ctx,doc,width);
@@ -19,7 +20,7 @@ export function paintPaper(ctx:CanvasRenderingContext2D,doc:PageDoc,width=doc.co
 export async function paintDoc(doc: PageDoc, pixelWidth = 1600): Promise<HTMLCanvasElement> {
   const usedFonts=[...new Set(doc.elements.filter(e=>e.type==='text'||captionText(e)).map(e=>e.type==='text'?`${e.fontStyle==='italic'?'italic ':''}${e.fontWeight||400} 32px "${e.font||'Commissioner'}"`:`400 32px "${e.captionFont||'Caveat'}"`))];
   const width=doc.cover?PAGE_W:SPREAD_W, canvas=document.createElement('canvas');canvas.width=pixelWidth;canvas.height=Math.round(pixelWidth*PAGE_H/width);
-  const images=new Map(doc.elements.filter(e=>e.type==='photo'||e.type==='sticker').map(e=>{const required=Math.max(e.w,e.h)*pixelWidth/width*(e.crop?.scale||1),variant=e.type==='photo'&&required<=320?'thumb':'display';return [e.id,imageFor(elementSrc(e,variant)).catch(()=>null)] as const;}));
+  const images=new Map(doc.elements.filter(e=>e.type==='photo'||e.type==='sticker').map(e=>{const required=Math.max(e.w,e.h)*pixelWidth/width*(e.crop?.scale||1),variant=e.type==='photo'?photoVariant(required):'display';return [e.id,imageFor(elementSrc(e,variant)).catch(()=>null)] as const;}));
   await Promise.all([...usedFonts.map(font=>document.fonts.load(font)),...images.values()]);
   const ctx=canvas.getContext('2d')!;ctx.scale(pixelWidth/width,pixelWidth/width);paintPaper(ctx,doc,width);
   for(const e of doc.elements.filter(e=>e.type!=='stroke')) {

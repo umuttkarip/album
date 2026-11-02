@@ -3,6 +3,11 @@ import type { ReadingView } from './render';
 export type ReadingMode='single'|'book';
 export const readingPreferenceKey=(userId:string)=>'album:view:v2:'+userId;
 export const initialReadingMode=(saved:unknown):ReadingMode=>saved==='book'?'book':'single';
+export const phoneLandscape=(w:number,h:number)=>w>h&&h<=520&&w<=1024;
+export const orientationReadingMode=(saved:ReadingMode,w:number,h:number):ReadingMode=>phoneLandscape(w,h)?'book':saved;
+export function matchingViewIndex(views:ReadingView[],spreadId:string,side:'left'|'right'){
+  return Math.max(0,views.findIndex(v=>v.spread.id===spreadId&&(v.region==='full'||v.region==='cover'||v.region===side)));
+}
 export function readerPageSize(frame:{w:number;h:number},mode:ReadingMode,landscape=false){
   const rails=landscape&&frame.w>=720;
   const aspect=mode==='book'?1.6:.8,reserve=rails?0:landscape?54:76,edge=rails?248:landscape?28:40;

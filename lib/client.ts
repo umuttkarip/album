@@ -18,7 +18,8 @@ export async function preparePhoto(file: File) {
         const ratio=Math.min(1,size/Math.max(bitmap.width,bitmap.height)), c=document.createElement('canvas');c.width=Math.max(1,Math.round(bitmap.width*ratio));c.height=Math.max(1,Math.round(bitmap.height*ratio));c.getContext('2d')!.drawImage(bitmap,0,0,c.width,c.height);
         const blob=await new Promise<Blob>((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('Fotoğraf işlenemedi.')),'image/webp',.9));c.width=c.height=1;return blob;
       };
-      return {width:bitmap.width,height:bitmap.height,display:await make(2560),thumb:await make(360)};
+      const display=await make(2560);
+      return {width:bitmap.width,height:bitmap.height,display,screen:Math.max(bitmap.width,bitmap.height)<=1280?display:await make(1280),thumb:await make(360)};
     } finally { bitmap.close(); }
   });
   processing=work.catch(()=>{});return work;
@@ -36,7 +37,7 @@ export async function uploadJob(albumId: string, job: UploadJob, kind: 'photo'|'
     job.state='working';job.error=undefined;update();
     const parts=job.variants || await preparePhoto(job.file);job.variants=parts;
     if(!job.id) job.id=(await post(`albums/${albumId}/assets`,{kind,filename:job.file.name,mime:job.file.type,width:parts.width,height:parts.height,...(job.capturedOn?{capturedOn:job.capturedOn}:{})})).id;
-    const blobs: [string,Blob][]=[['original',job.file],['display',parts.display],['thumb',parts.thumb]], total=blobs.reduce((s,[,b])=>s+b.size,0);let sent=0;
+    const blobs: [string,Blob][]=[['original',job.file],['display',parts.display],['thumb',parts.thumb],...(parts.screen?[['screen',parts.screen] as [string,Blob]]:[])], total=blobs.reduce((s,[,b])=>s+b.size,0);let sent=0;
     for(const [variant,blob] of blobs) {if(!job.uploaded?.includes(variant)){await uploadBlob(job.id!,variant,blob,n=>{job.progress=(sent+n)/total;update();});job.uploaded=[...(job.uploaded||[]),variant];}sent+=blob.size;}
     await post(`assets/${job.id}/complete`);job.state='done';job.progress=1;job.variants=undefined;update();
   }catch(e){job.state='error';job.error=e instanceof Error?e.message:'Yükleme tamamlanamadı.';update();}

@@ -135,7 +135,9 @@ legend { font-size: 13px; margin-bottom: 12px; }
 .header-actions { display: flex; gap: 8px; align-items: center; }
 .view-toggle { color: var(--accent); }
 .reader-stage { flex: 1; min-height: 0; display: grid; place-items: center; position: relative; isolation: isolate; }
-.book-frame { position: relative; touch-action: pan-y; user-select: none; filter: drop-shadow(5px 18px 24px #20223740); transition: opacity .2s; }
+.book-frame { position: relative; touch-action: pan-y; user-select: none; -webkit-touch-callout:none; filter: drop-shadow(5px 18px 24px #20223740); transition: opacity .2s; }
+.reader-photo-access-button { position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden;white-space:nowrap; }
+.reader-photo-access-button:focus-visible { width:auto;height:auto;clip-path:none;white-space:normal;max-width:90vw;z-index:20;bottom:10px;left:10px;padding:12px;background:var(--panel);color:var(--ink);border-radius:8px; }
 .book-frame > div { overflow: hidden!important; border-radius: 5px 9px 9px 5px; }
 .book-frame canvas { display: block; touch-action: pan-y!important; }
 .book-frame::before { content: ''; position: absolute; inset: 3px -3px -4px 2px; z-index: -1; border-radius: 4px 9px 9px 4px; background: repeating-linear-gradient(to bottom,#e9e6d9 0,#e9e6d9 1px,#d7d8ca 1px,#d7d8ca 2px); }

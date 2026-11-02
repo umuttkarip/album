@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {blankDoc,newElement,applyTemplate,type Spread} from '../lib/model';
 import {readingViews} from '../lib/render';
-import {readingMode,requiresOpenBook,savedViewIndex,initialReadingMode,readingPreferenceKey,readerPageSize} from '../lib/reading';
+import {readingMode,requiresOpenBook,savedViewIndex,initialReadingMode,readingPreferenceKey,readerPageSize,orientationReadingMode,matchingViewIndex} from '../lib/reading';
 const spread=(id:string,position:number,doc=blankDoc()):Spread=>({id,album_id:'a',position,revision:0,doc});
 const ordinary={...blankDoc(),elements:[newElement('photo',{assetId:'a',x:110,y:120,w:780,h:1000})]};
 const panorama=applyTemplate('panorama',[{id:'wide',width:1800,height:1000}]);
@@ -24,4 +24,11 @@ test('new reading preferences default to a single page and do not reuse the old 
 test('landscape fits both page modes into short phones without changing the document or preference',()=>{
   for(const frame of [{w:844,h:390},{w:667,h:267},{w:740,h:360}])for(const mode of ['single','book']as const){const size=readerPageSize(frame,mode,true),rails=frame.w>=720;assert.ok(size.w<=frame.w-(rails?248:28)+.01);assert.ok(size.h+(rails?48:66)<=frame.h+.01);assert.ok(Math.abs(size.w/size.h-(mode==='book'?1.6:.8))<.0001);}
   assert.ok(readerPageSize({w:844,h:336},'book',true).h>readerPageSize({w:844,h:336},'book').h);
+});
+test('landscape phone defaults to a spread while portrait and desktop keep the saved preference',()=>{
+  assert.equal(orientationReadingMode('single',844,390),'book');assert.equal(orientationReadingMode('single',667,375),'book');assert.equal(orientationReadingMode('single',390,844),'single');assert.equal(orientationReadingMode('book',390,844),'book');assert.equal(orientationReadingMode('single',1528,651),'single');assert.equal(orientationReadingMode('single',1440,500),'single');
+});
+test('orientation remapping retains the same composition and returns to its original right page',()=>{
+  const spreads=[spread('cover',-1,blankDoc('ivory',true)),spread('one',0,ordinary),spread('wide',1,panorama),spread('last',2,ordinary)],single=readingViews(spreads,'single'),book=readingViews(spreads,'book');
+  const right=single.find(v=>v.key==='last:right')!,open=book[matchingViewIndex(book,right.spread.id,'right')],restored=single[matchingViewIndex(single,open.spread.id,'right')];assert.equal(open.spread.id,right.spread.id);assert.equal(restored.key,right.key);assert.equal(single[matchingViewIndex(single,'wide','right')].region,'full');
 });

@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {ArrowLeft,ArrowRight,BookOpen,CalendarDays,ImagePlus,LayoutTemplate,LockKeyhole,MousePointer2,Pencil,Plus,Users,X} from 'lucide-react';
 
 const steps=[
-  {title:'Albümleri incele',text:'Kapağa dokunarak albümü aç. Sayfaları kaydırarak veya oklarla gez; fotoğrafa dokununca tamamını gör.',kind:'read'},
+  {title:'Albümleri incele',text:'Kapağa dokunarak albümü aç. Sayfaları kaydırarak veya oklarla gez; fotoğrafı basılı tutarak orijinalini aç.',kind:'read'},
   {title:'Sayfaları düzenle',text:'Albümde Düzenle’ye gir. Fotoğraf ekle, yerini ve boyutunu değiştir. Değişikliklerin otomatik kaydedilir.',kind:'edit'},
   {title:'Kendi albümünü oluştur',text:'Yeni albüm’den adını ve tasarımını seç. Ortak albümü birlikte, özel albümünü yalnızca sen düzenlersin.',kind:'create'},
   {title:'Günlere fotoğraf ekle',text:'Albümler sayfalar halinde, Günler tarihe göre gösterir. Günler’de bir tarihi açıp Fotoğraf ekle’ye dokun. Aynı güne birkaç fotoğraf eklenebilir; ekleyen kişi görünür.',kind:'days'},

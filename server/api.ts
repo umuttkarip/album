@@ -200,9 +200,9 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         const parent=await album(env,a.album_id,u,true);if(parent.visibility!=='shared')fail(400,'Günler için ortak bir fotoğraf seç.');
         await env.DB.prepare('UPDATE assets SET captured_on=? WHERE id=? AND deleted_at IS NULL').bind(b.day,a.id).run();return json({ok:true});
       }
-      const variant=path[2];if(!['original','display','thumb','complete'].includes(variant)) fail(404,'Dosya bulunamadı.');
+      const variant=path[2];if(!['original','display','thumb','screen','complete'].includes(variant)) fail(404,'Dosya bulunamadı.');
       if (method === 'PUT' && variant !== 'complete') {
-        if(a.ready) fail(409,'Bu fotoğraf zaten kaydedildi.');
+        if(a.ready&&variant!=='screen') fail(409,'Bu fotoğraf zaten kaydedildi.');
         const limit=variant==='original'?30*1024*1024:6*1024*1024, length=Number(req.headers.get('content-length'));
         if(!length || length>limit) fail(413,'Dosya çok büyük. En fazla 30 MB yüklenebilir.');
         if(!req.body) fail(400,'Dosya gövdesi eksik.');
@@ -212,6 +212,14 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         const mime=variant==='original'?a.mime:'image/webp';
         const ok=mime==='image/jpeg'?bytes[0]===255&&bytes[1]===216 : mime==='image/png'?bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71 : String.fromCharCode(...bytes.slice(0,4))==='RIFF'&&String.fromCharCode(...bytes.slice(8,12))==='WEBP';
         if(!ok){void reader.cancel();fail(400,'Dosya biçimi içeriğiyle uyuşmuyor.');}
+        if(variant==='screen'){
+          const parts=[...prefix];while(true){const part=await reader.read();if(part.done)break;received+=part.value.length;if(received>limit||received>length){void reader.cancel();fail(413,'Dosya çok büyük.');}parts.push(part.value);}reader.releaseLock();
+          if(received!==length)fail(400,'Dosya eksik yüklendi.');
+          const data=new Uint8Array(received);let offset=0;for(const part of parts){data.set(part,offset);offset+=part.length;}
+          const stored=await env.BUCKET.put(`${a.id}/screen`,data,{httpMetadata:{contentType:mime},onlyIf:new Headers({'If-None-Match':'*'})});
+          if(!stored)fail(409,'Görüntüleme kopyası zaten hazır.');
+          await env.DB.prepare('UPDATE assets SET uploaded=uploaded|8 WHERE id=?').bind(a.id).run();return json({ok:true});
+        }
         const stream=new FixedLengthStream(length);
         const pump=(async()=>{const writer=stream.writable.getWriter();try{for(const part of prefix)await writer.write(part);while(true){const part=await reader.read();if(part.done)break;received+=part.value.length;if(received>limit||received>length)throw new Error('Yükleme sınırı aşıldı.');await writer.write(part.value);}await writer.close();}catch(e){await writer.abort(e).catch(()=>{});throw e;}finally{reader.releaseLock();}})();
         await Promise.all([env.BUCKET.put(`${a.id}/${variant}`,stream.readable,{httpMetadata:{contentType:mime}}),pump]);
@@ -219,10 +227,10 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         await env.DB.prepare('UPDATE assets SET uploaded=uploaded|? WHERE id=?').bind(mask,a.id).run();return json({ok:true});
       }
       if (method === 'POST' && variant==='complete') {
-        if(a.uploaded!==7) fail(409,'Fotoğrafın bütün kopyaları henüz yüklenmedi.'); await env.DB.prepare('UPDATE assets SET ready=1 WHERE id=?').bind(a.id).run();if(a.kind==='photo'){const parent=await album(env,a.album_id,u);await ensureAutomaticPages(env,parent.id,parent.paper,parent.design_id);}return json({ok:true});
+        if((a.uploaded&7)!==7) fail(409,'Fotoğrafın bütün kopyaları henüz yüklenmedi.'); await env.DB.prepare('UPDATE assets SET ready=1 WHERE id=?').bind(a.id).run();if(a.kind==='photo'){const parent=await album(env,a.album_id,u);await ensureAutomaticPages(env,parent.id,parent.paper,parent.design_id);}return json({ok:true});
       }
       if (method === 'GET' && variant!=='complete' && a.ready) {
-        const object=await env.BUCKET.get(`${a.id}/${variant}`);if(!object) fail(404,'Dosya bulunamadı.');
+        const object=await env.BUCKET.get(`${a.id}/${variant}`)||(variant==='screen'?await env.BUCKET.get(`${a.id}/display`):null);if(!object) fail(404,'Dosya bulunamadı.');
         return new Response(object.body,{headers:{'Content-Type':variant==='original'?a.mime:'image/webp','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Disposition':`${url.searchParams.has('download')?'attachment':'inline'}; filename*=UTF-8''${encodeURIComponent(a.filename)}`,'Cross-Origin-Resource-Policy':'same-origin'}});
       }
     }

@@ -35,3 +35,11 @@ Cilt rengi kayıtlı kapak yüzeyini devralır; kütüphane yaprakları gerçek 
 Okuyucu ilk açılışta tek sayfa kullanır; yeni tercih anahtarı eski ikili varsayılanını devralmaz. Dikey ekranda çift sayfa serbesttir ve yatay kullanım önerilir. Geniş yatay telefonlarda kontroller defterin yanlarına taşınır; cihazı döndürmek sayfayı veya tercihi değiştirmez. Arka kâğıt blokları gerçek sol/sağ yüzlerden oluşturulur; cilt gölgesi/ışığı editör, okuyucu ve önizlemede ortak çizilir.
 
 Worker güncellemesinden önce wrangler.site.jsonc ile bekleyen D1 migration’larını uygula. Eski belgeler ve orijinal fotoğraflar korunur. Fiziksel Android dokunma testi, responsive tarayıcı kontrolünden ayrıdır.
+
+## Aktarım ve dokunma
+
+Okuyucu, çizilecek fotoğrafın piksel gereksinimine göre360px thumb,1280px screen veya2560px display kopyasını seçer; kadraj yakınlaştırması da hesaba katılır. Eksik screen kopyası eski display dosyasına geri döner. Yeni yüklemeler dört varyant üretir; orijinal dosya değişmez. Mevcut varlığa screen eklenebilir, varsa koşullu R2 yazımı409 döner. Eski üç varyantın tamamlanma maskesi7 ile yeni15 birlikte desteklenir.
+
+Sıkıştırılmış görüntüler sayfanın belleğinde en fazla24MiB/192 kayıt tutulur; eşzamanlı istekler birleştirilir. Orijinaller/indirmeler bu önbelleğe girmez. Çıkış ve fotoğraf kaldırma önbelleği temizler; bekleyen iptal edilmiş yükleme geri dolduramaz. Özel HTTP yanıtları private/no-store kalır; disk önbelleği veya herkese açık R2 kullanılmaz.
+
+Telefon yataya döndüğünde aynı kompozisyon çift sayfa açılır; dikeye dönüşte önceki tercih ve sağ/sol sayfa korunur. Otomatik dönüş kalıcı tercihi yazmaz; elle görünüm seçimi serbesttir. Albüm fotoğrafı500ms basılı tutmayla orijinal dosyasından açılır. Kısa dokunuş,8px üstü hareket, iptal ve çoklu dokunma yanlışlıkla fotoğraf açmaz. Kapak kısa dokunuşla açılır; klavye için orijinal fotoğraf eylemleri odakta görünür.
