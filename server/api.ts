@@ -82,7 +82,20 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
       if (path.length === 2 && method === 'PATCH') {
         const b = await body(req), title=String(b.title||'').trim(), description=String(b.description||''); if(!title || title.length>100 || description.length>2000) fail(400,'Albüm bilgilerini kontrol et.');
         if(b.designId!==undefined&&!validDesign(b.designId))fail(400,'Tasarımı kontrol et.');
-        await env.DB.prepare('UPDATE albums SET title=?,description=?,design_id=?,updated_at=? WHERE id=?').bind(title,description,b.designId||a.design_id||null,Date.now(),a.id).run(); return json({ok:true});
+        if(b.visibility!==undefined&&!['shared','personal'].includes(b.visibility))fail(400,'Albüm türünü kontrol et.');
+        if(b.visibility!==undefined&&b.visibility!==a.visibility&&a.owner_id!==u.id)fail(403,'Albüm türünü yalnız sahibi değiştirebilir.');
+        await env.DB.prepare('UPDATE albums SET title=?,description=?,design_id=?,visibility=?,updated_at=? WHERE id=?').bind(title,description,b.designId||a.design_id||null,b.visibility||a.visibility,Date.now(),a.id).run(); return json({ok:true});
+      }
+      if(path.length===2&&method==='DELETE'){
+        if(a.owner_id!==u.id)fail(403,'Albümü yalnız sahibi kaldırabilir.');
+        const b=await body(req);if(b.confirmTitle!==a.title)fail(400,'Albüm adını doğrula.');
+        if(b.updatedAt!==a.updated_at)fail(409,'Albüm değişti. Kaldırmadan önce yeniden kontrol et.');
+        const assets=await env.DB.prepare('SELECT id FROM assets WHERE album_id=?').bind(a.id).all<{id:string}>();
+        if(!Array.isArray(b.assetIds)||b.assetIds.length!==assets.results.length||assets.results.some(p=>!b.assetIds.includes(p.id)))fail(409,'Albümdeki fotoğraflar değişti. Yeniden kontrol et.');
+        const keys=assets.results.flatMap(p=>['original','display','thumb'].map(v=>p.id+'/'+v));
+        for(let start=0;start<keys.length;start+=100)await env.BUCKET.delete(keys.slice(start,start+100));
+        await env.DB.batch([env.DB.prepare('DELETE FROM assets WHERE album_id=?').bind(a.id),env.DB.prepare('DELETE FROM spreads WHERE album_id=?').bind(a.id),env.DB.prepare('DELETE FROM albums WHERE id=?').bind(a.id)]);
+        return json({ok:true});
       }
       if (path[2] === 'spreads' && method === 'POST') {
         const b=await body(req), d=b.doc || {...(a.design_id?themeDocument(a.design_id):blankDoc(a.paper)),autoLayout:false}; if(!validDoc(d) || d.cover) fail(400,'Geçersiz sayfa.'); await checkDocAssets(env,d,a.id);
