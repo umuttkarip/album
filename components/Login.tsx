@@ -12,6 +12,6 @@ export default function Login({username,password,showPassword,onUsername,onPassw
       <label htmlFor="password">Şifre</label><div className="password-field"><input id="password" name="password" type={showPassword?'text':'password'} autoComplete="current-password" required value={password} onChange={e=>onPassword(e.target.value)}/><button type="button" aria-label={showPassword?'Şifreyi gizle':'Şifreyi göster'} onClick={onShow}><Eye size={19}/></button></div>
       {error&&<p className="form-error" role="alert">{error}</p>}
       <button className="button primary login-submit" disabled={busy||!backendConfigured}>{busy?<LoaderCircle className="spin" size={19}/>:<>Giriş yap<ArrowRight size={18}/></>}</button>
-    </form></section><div className="login-art" aria-hidden="true"><img className="login-album-image" src={publicUrl('illustrations/login-album.webp')} srcSet={`${publicUrl('illustrations/login-album-small.webp')} 480w, ${publicUrl('illustrations/login-album.webp')} 960w`} sizes="(max-width:760px) 180px, 430px" width="960" height="1200" alt="" fetchPriority="high" decoding="async" draggable={false}/></div></div>
+    </form></section><div className="login-art" aria-hidden="true"><img className="login-album-image" src={publicUrl('illustrations/login-album-flat.svg')} width="600" height="420" alt="" fetchPriority="high" decoding="async" draggable={false}/></div></div>
   </main>;
 }

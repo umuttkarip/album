@@ -1053,19 +1053,19 @@ img[aria-busy=false] { transition:opacity .16s; }
 .password-change-screen small{color:var(--muted);font-size:12px;margin-top:-6px;}
 .password-change-screen .button.primary{margin-top:16px;min-height:46px;}
 
-/* A photographic album replaces the former CSS mock cover. */
+/* Flat album illustration reflects the reader without private photographs. */
 .login-main{max-width:1000px;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:clamp(60px,8vw,135px);}
 .login-art{width:100%;height:auto;margin:0;transform:none;display:grid;place-items:center;}
-.login-album-image{display:block;width:min(100%,430px);height:auto;transform:rotate(-5deg);filter:drop-shadow(12px 24px 20px #080d195c);user-select:none;}
+.login-album-image{display:block;width:min(100%,480px);height:auto;user-select:none;}
 @media(max-width:760px){
  .login-screen{padding:24px;}
  .login-main{gap:12px;padding:20px 0;justify-content:center;}
- .login-art{width:172px;height:auto;margin:0;flex:none;}
- .login-album-image{width:100%;filter:drop-shadow(6px 12px 12px #080d195c);}
+ .login-art{width:230px;height:auto;margin:0;flex:none;}
+ .login-album-image{width:100%;}
  .login-form-area{padding:16px 0 24px;}
  .login-form-area h1{margin:0 0 24px;}
 }
-@media(max-height:600px) and (max-width:760px){.login-main{padding:12px 0;gap:4px;}.login-art{width:110px;}.login-form-area{padding:10px 0;}.login-form-area h1{margin-bottom:18px;}}
+@media(max-height:600px) and (max-width:760px){.login-main{padding:12px 0;gap:4px;}.login-art{width:150px;}.login-form-area{padding:10px 0;}.login-form-area h1{margin-bottom:18px;}}
 
 /* Imported design ideas, with the existing gestures and permissions retained. */
 .brand-home { display:flex; align-items:center; min-height:44px; }
