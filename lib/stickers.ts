@@ -1,7 +1,7 @@
 import { publicUrl } from './network';
 import { extraStickers } from './stickers-extra';
 export interface StickerSpec { id: string; name: string; src: string; width: number; height: number; packId?:string }
-export const stickerPacks=[{id:'paper',name:'Kâğıt ve bant'},{id:'drawing',name:'Çizimler'},{id:'objects',name:'Nesneler'},{id:'supplied',name:'Gönderdiklerin'},{id:'uploaded',name:'Yüklediklerin'}];
+export const stickerPacks=[{id:'paper',name:'Kâğıt ve bant'},{id:'drawing',name:'Çizimler'},{id:'objects',name:'Nesneler'},{id:'uploaded',name:'Gönderdiklerin'}];
 
 export const stickers: StickerSpec[] = [
   {
