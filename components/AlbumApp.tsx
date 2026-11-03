@@ -50,7 +50,7 @@ function AlbumContent(){
     if(!tour||tour.step==='invite')return;
     setPhotoId(null);setInspectPhoto(null);setDetailsOpen(false);setRemoval(null);
     if(tour.step!=='create')setNewOpen(false);
-    const context=tourContext(tour.step),wantedFilter=tourFilter(tour.step);
+    const context=tourContext(tour.step),wantedFilter=tour.step==='open-album'&&albums.some(a=>a.id===tour.albumId&&a.visibility==='personal')?'personal':tourFilter(tour.step);
     if(context==='library'){setSection('albums');setScreen('home');if(wantedFilter)setFilter(wantedFilter);}
     if(context==='reader'){setSection('albums');if(data)setScreen('reader');}
     if(context==='editor'){setSection('albums');if(data)setScreen('editor');}
