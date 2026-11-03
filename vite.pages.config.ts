@@ -25,6 +25,6 @@ export default defineConfig({
     { name: 'album-pages-fonts', enforce: 'pre', transform(code, id) { if (id.endsWith('/app/globals.css')) return code.replace("@import url('/fonts/fonts.css');", ''); } },
     react(),
   ],
-  build: { outDir: path.join(here, 'web'), emptyOutDir: false, chunkSizeWarningLimit: 1600 },
+  build: { manifest:true, outDir: path.join(here, 'web'), emptyOutDir: false, chunkSizeWarningLimit: 1600 },
   server: { host: '127.0.0.1', port: 5174, strictPort: true },
 });

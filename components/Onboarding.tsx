@@ -33,7 +33,7 @@ export default function Onboarding({state,onNext,onClose}:{state:TourState;onNex
       setAnchor(old=>old.host===host&&old.w===w&&old.h===h&&JSON.stringify(old.box)===JSON.stringify(box)&&JSON.stringify(old.boxes)===JSON.stringify(boxes)?old:{box,host,w,h,boxes});
       if(target&&!focused){focused=true;if(!description.next||state.step==='create')target.focus({preventScroll:true});}
     };
-    update();const observer=new MutationObserver(update);observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open','hidden','data-tour-ready']});
+    update();const observer=new MutationObserver(update);observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open','hidden','class','data-tour-ready']});
     window.addEventListener('resize',update);window.addEventListener('scroll',update,true);window.visualViewport?.addEventListener('resize',update);
     return()=>{observer.disconnect();window.removeEventListener('resize',update);window.removeEventListener('scroll',update,true);window.visualViewport?.removeEventListener('resize',update);};
   },[description.target,state.step]);
@@ -54,7 +54,7 @@ export default function Onboarding({state,onNext,onClose}:{state:TourState;onNex
   const invite=state.step==='invite' ,ready=invite||!!anchor.box,position=state.step==='tools'?{left:Math.max(12,anchor.w-(compact?185:350)-12),top:10,width:Math.min(compact?185:350,anchor.w-24)}:placement(anchor.box,anchor.w,anchor.h,panelH);
   return createPortal(<>
     {!invite&&anchor.box&&<svg className="tour-spotlight" width={anchor.w} height={anchor.h} aria-hidden="true"><defs><mask id={mask}><rect width="100%" height="100%" fill="white"/>{anchor.boxes.map((b,i)=><rect key={i} x={b.x} y={b.y} width={b.w} height={b.h} rx="10" fill="black"/>)}</mask></defs><rect width="100%" height="100%" fill="#080d19a8" mask={`url(#${mask})`}/><rect className="tour-target-ring" x={anchor.box.x} y={anchor.box.y} width={anchor.box.w} height={anchor.box.h} rx="10"/></svg>}
-    <aside ref={panel} className="usage-tour guided-tour" style={position} role="dialog" aria-modal="false" aria-labelledby={compact?undefined:"tour-title"} aria-label={compact?"Düzenleme araçları":undefined} aria-describedby={description.text&&!compact?'tour-description':undefined} data-tour-step={state.step}>
+    <aside ref={panel} className={'usage-tour guided-tour '+(compact?'tour-compact':'')} style={position} role="dialog" aria-modal="false" aria-labelledby={compact?undefined:"tour-title"} aria-label={compact?"Düzenleme araçları":undefined} aria-describedby={description.text&&!compact?'tour-description':undefined} data-tour-step={state.step}>
       <div className="tour-top"><span>{compact?'Araçları deneyebilirsin':description.chapter}</span><button className="icon-button" onClick={onClose} aria-label="Tanıtımı kapat"><X size={18}/></button></div>
       {!compact&&<div className="tour-copy" aria-live="polite"><h2 id="tour-title">{description.title}</h2>{description.text&&<p id="tour-description">{description.text}</p>}</div>}
       {description.next?<div className="tour-actions"><button className="text-button" onClick={onClose}>{invite?'Geç':'Bitir'}</button><button className="button primary" disabled={!ready} onClick={onNext}>{description.next}<ArrowRight size={16}/></button></div>:!ready&&<p className="tour-required" role="status">Açılıyor…</p>}

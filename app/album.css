@@ -1080,3 +1080,9 @@ img[aria-busy=false] { transition:opacity .16s; }
 .day-upload-jobs { margin:0 0 20px;max-height:210px;overflow:auto;border-bottom:1px solid var(--panel-line);padding-bottom:12px; }
 
 .release-update { position:fixed;z-index:100010;left:50%;bottom:12px;transform:translateX(-50%);display:flex;align-items:center;gap:14px;max-width:calc(100vw - 24px);padding:10px 14px;background:var(--panel);color:var(--ink);border-radius:12px;box-shadow:0 8px 30px #0004;font-size:14px; }
+
+.usage-tour.tour-compact {display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 8px;height:48px;overflow:visible;}
+.tour-compact .tour-top{order:2;min-height:0;}
+.tour-compact .tour-top>span,.tour-compact .tour-actions>.text-button{display:none;}
+.tour-compact .tour-actions{margin:0;}
+.tour-compact .tour-actions .button.primary{min-height:38px;padding:6px 12px;}
