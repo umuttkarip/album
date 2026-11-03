@@ -278,12 +278,6 @@ legend { font-size: 13px; margin-bottom: 12px; }
 .login-submit { margin-top: 28px; justify-content: space-between; }
 .form-error { font-size: 13px; margin-top: 15px; color: var(--danger); }
 .login-art { position: relative; height: 380px; margin: 30px 0; transform: rotate(-6deg); }
-.closed-book { position: absolute; inset: 0 45px 20px 20px; border-radius: 7px 20px 20px 7px; background: #b7c6aa; box-shadow: 5px 20px 30px #25263830,inset 7px 0 14px #65765d15,inset 1px 1px 1px #ffffff70; display: grid; place-items: center; z-index: 3; }
-.closed-book span { font-family: 'Literata',serif; font-size: 35px; color: #52634e; }
-.closed-book-paper { position: absolute; inset: 5px 40px 15px 22px; background: repeating-linear-gradient(to bottom,#efedde 0,#efedde 1px,#d7d9c9 1px,#d7d9c9 2px); border-radius: 7px 20px 20px 7px; z-index: 2; }
-.login-photo { position: absolute; inset: 22px 20px 30px 35px; border: 12px solid #f3eddf; border-radius: 6px; background: #dad3c7; box-shadow: 0 10px 24px #20233720; }
-.login-photo.one { transform: rotate(10deg) translate(8px,-8px); }
-.login-photo.two { transform: rotate(17deg) translate(16px,2px); background: #c5c9ba; }
 
 @media (hover:hover) and (pointer:fine) {
   .album-entry:hover .album-book { transform: rotate(0) rotateY(0) translateY(-6px); }
@@ -390,10 +384,6 @@ legend { font-size: 13px; margin-bottom: 12px; }
   .login-screen { padding: 25px; }
   .login-main { max-width: 360px; display: flex; flex-direction: column-reverse; gap: 5px; padding: 25px 0; }
   .login-art { width: 185px; height: 210px; margin: 10px 0; }
-  .closed-book { inset: 0 20px 10px 5px; border-radius: 5px 12px 12px 5px; }
-  .closed-book span { font-size: 24px; }
-  .closed-book-paper { inset: 3px 17px 7px 7px; border-radius: 5px 12px 12px 5px; }
-  .login-photo { inset: 14px 10px 17px 15px; border-width: 7px; }
   .login-form-area { padding: 20px 0 25px; }
   .login-form-area h1 { font-size: 26px; margin-bottom: 25px; }
 }
@@ -492,10 +482,6 @@ legend { font-size: 13px; margin-bottom: 12px; }
 .photo-quick-actions { display:flex;gap:8px;margin:16px 0; }
 .photo-quick-actions .button { flex:1;min-width:0;padding:9px;font-size:12px; }
 .photo-quick-actions .active { background:#d6e0e7;border-color:#728da3; }
-.closed-book { background:#53667e;color:#f4eddc;box-shadow:inset 5px 0 7px #22304433,2px 3px 0 #dfd9cb,8px 18px 35px #0a101c30; }
-.closed-book span { color:#f4eddc;font-family:'Literata',serif; }
-.login-photo.one { background:repeating-linear-gradient(0deg,transparent 0 23px,#728a9c25 23px 24px),repeating-linear-gradient(90deg,#f2eede 0 23px,#728a9c25 23px 24px); }
-.login-photo.two { background:#c0cbb8; }
 .login-submit { background:#e7e5d8; }
 @media(min-width:761px) and (max-height:740px){.single-album .album-entry{width:min(285px,calc((100dvh - 280px)*.8));max-width:285px}.library{padding-top:14px}.album-shelf.single-album{padding-top:25px}}
 @media(max-width:760px){
@@ -855,10 +841,6 @@ img[aria-busy=false] { transition:opacity .16s; }
 .day-photo footer { padding-top:7px; color:#5c6961; }
 .photo-library-heading h1 { font-family:Literata,serif; font-weight:400; font-size:30px; }
 .archive-photo-image { background:#1b2230; border-radius:4px; }
-.closed-book { background-color:#405a57; background-image:repeating-linear-gradient(90deg,#ffffff04 0 1px,transparent 1px 4px),repeating-linear-gradient(0deg,#00000006 0 1px,transparent 1px 4px); box-shadow:inset 6px 0 8px #081e2240,inset 1px 1px 1px #ffffff40,2px 3px 0 #ded8c9,var(--shadow-book); }
-.closed-book span { font-size:34px; font-style:italic; color:#e8e4d4; }
-.login-photo.one { transform:rotate(5deg) translate(3px,-3px); }
-.login-photo.two { transform:rotate(10deg) translate(8px,1px); }
 .login-form-area h1 { font-family:Literata,serif; font-weight:400; font-size:31px; }
 .login-submit { border-radius:10px; }
 @media(hover:hover) and (pointer:fine) {
@@ -1005,7 +987,6 @@ img[aria-busy=false] { transition:opacity .16s; }
   .photo-library-heading h1 { font-size:27px; }
   .login-screen { padding:24px; }
   .login-main { gap:4px; }
-  .closed-book span { font-size:25px; }
   .login-form-area h1 { font-size:27px; }
 }
 @media(max-width:359px) {
@@ -1095,3 +1076,17 @@ img[aria-busy=false] { transition:opacity .16s; }
 .password-change-screen input{min-height:48px;width:100%;}
 .password-change-screen small{color:var(--muted);font-size:12px;margin-top:-6px;}
 .password-change-screen .button.primary{margin-top:16px;min-height:46px;}
+
+/* A photographic album replaces the former CSS mock cover. */
+.login-main{max-width:1000px;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:clamp(60px,8vw,135px);}
+.login-art{width:100%;height:auto;margin:0;transform:none;display:grid;place-items:center;}
+.login-album-image{display:block;width:min(100%,430px);height:auto;transform:rotate(-5deg);filter:drop-shadow(12px 24px 20px #080d195c);user-select:none;}
+@media(max-width:760px){
+ .login-screen{padding:24px;}
+ .login-main{gap:12px;padding:20px 0;justify-content:center;}
+ .login-art{width:172px;height:auto;margin:0;flex:none;}
+ .login-album-image{width:100%;filter:drop-shadow(6px 12px 12px #080d195c);}
+ .login-form-area{padding:16px 0 24px;}
+ .login-form-area h1{margin:0 0 24px;}
+}
+@media(max-height:600px) and (max-width:760px){.login-main{padding:12px 0;gap:4px;}.login-art{width:110px;}.login-form-area{padding:10px 0;}.login-form-area h1{margin-bottom:18px;}}
