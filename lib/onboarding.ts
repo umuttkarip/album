@@ -49,7 +49,7 @@ export function describeTour(state:TourState):TourDescription {
     days:{title:'Takvim’i aç',text:'',target:target('nav-days'),chapter:'4 / 5'},
     calendar:{title:'Fotoğraflı takvim',text:'Daha önceki fotoğraflarımızı günlerine göre yükledim. Sen de fotoğraf ekleyebilirsin. 3 Ekim’i aç.',target:target('day-'+TOUR_DAY),chapter:'4 / 5'},
     'open-day':{title:'3 Ekim Cumartesi’yi aç',text:'',target:target('day-'+TOUR_DAY),chapter:'4 / 5'},
-    upload:{title:'Fotoğraf ekle',text:'Buradan seçtiğin güne fotoğraf yükleyebilirsin. Tarihi değiştirerek başka bir gün de seçebilirsin.',target:target('day-upload'),chapter:'4 / 5',next:'Devam'},
+    upload:{title:'Fotoğraf ekle',text:'Fotoğraf ekle’ye dokunup bu güne fotoğraf yükleyebilirsin.',target:target('day-upload'),chapter:'4 / 5',next:'Devam'},
     'close-day':{title:'Günü kapat',text:'',target:target('day-close'),chapter:'4 / 5'},
     private:{title:'Özel albümler',text:'Kendi albümünü oluşturmak için Özel’e geç.',target:target('filter-personal'),chapter:'5 / 5'},
     'new-album':{title:'Kendi albümünü oluştur',text:'',target:target('new-album'),chapter:'5 / 5'},
