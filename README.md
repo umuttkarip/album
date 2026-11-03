@@ -18,7 +18,7 @@ Asıl site yalnız host'a ait __Host-album_session çerezini kullanır: HttpOnly
 
 Özel albümleri sahibi ve yönetici görür; yalnız sahibi düzenler. Ortak albümleri iki hesap düzenler. Bütün fotoğraf varyantları albüm yetkisiyle kontrol edilir; R2 herkese açık değildir. Silinenler gizlenir ve yönetici arşivinde kırmızı çerçeveyle korunur. Eski album-api servisi ve veriler uyumluluk için yerinde tutulur.
 
-Etkileşimli tur doğru ekranı açar, gerçek kontrolleri vurgular ve eylem adımlarında gerçek tıklamaları bekler. Ana sayfa, dört farklı sayfa, çift görünüm, editör/iki geri, Günler/bir tarih ve özel albüm formu izlenir; otomatik fotoğraf veya albüm yazımı yapılmaz. Menüdeki Kısa kullanım yeniden açar. Sude için geçici test ayarı her yenilemede davet gösterir; Umut bir kez davranışını ve mevcut seen kayıtlarını korur.
+Etkileşimli tur doğru ekranı açar ve gerçek kontrolleri vurgular. Ana sayfa, serbest sayfa gezintisi, çift görünüm, editör/iki geri, Takvim/bir tarih ve özel albüm formu izlenir. Gezinme süresini kullanıcı belirler; sayfa kotası ve sayacı yoktur. Otomatik fotoğraf veya albüm yazımı yapılmaz. Menüdeki Kısa kullanım yeniden açar. Sude için geçici test ayarı her yenilemede davet gösterir; Umut bir kez davranışını ve mevcut seen kayıtlarını korur.
 
 ## Kapak ve sayfa düzeni
 
@@ -30,7 +30,7 @@ Altı tasarım kapak ve sayfa önizlemeleriyle seçilir. Albüm ayarında yeni t
 
 Yeni albüm ekranında büyük kapak/açık sayfa önizlemesi ve fotoğrafsız kapak görünümü vardır; örnek fotoğraflar yeni albüme kopyalanmaz. Altı tasarımın yeni yerleşimleri opsiyonel `layoutVersion:2` belge alanıyla ayrılır. Sürümsüz otomatik belgeler eski düzenlerini, elle düzenlenmiş belgeler bütün konumlarını korur. Veritabanı migration'ı gerekmez; yeni albümlerin bu alanla başlaması için Worker ve arayüz birlikte güncellenir.
 
-Cilt rengi kayıtlı kapak yüzeyini devralır; kütüphane yaprakları gerçek sayfa önizlemeleridir. Mobil editörde Fotoğraf/Şablon/Metin/Çıkartma araçları görünür; Diğer menüsü çizim ve kâğıt araçlarını açar. Günler küçük yığınları 4:5, açılan gün fotoğrafları kaynak oranıyla gösterir. Gerektiğinde çizim ve sınırlı görüntü/doku önbellekleri korunur.
+Cilt rengi kayıtlı kapak yüzeyini devralır; kütüphane yaprakları gerçek sayfa önizlemeleridir. Mobil editörde Fotoğraf/Şablon/Metin/Çıkartma araçları görünür; Diğer menüsü çizim ve kâğıt araçlarını açar. Takvim küçük yığınları 4:5, açılan gün fotoğrafları kaynak oranıyla gösterir. Gerektiğinde çizim ve sınırlı görüntü/doku önbellekleri korunur.
 
 Okuyucu ilk açılışta tek sayfa kullanır; yeni tercih anahtarı eski ikili varsayılanını devralmaz. Dikey ekranda çift sayfa serbesttir ve yatay kullanım önerilir. Geniş yatay telefonlarda kontroller defterin yanlarına taşınır; cihazı döndürmek sayfayı veya tercihi değiştirmez. Arka kâğıt blokları gerçek sol/sağ yüzlerden oluşturulur; cilt gölgesi/ışığı editör, okuyucu ve önizlemede ortak çizilir.
 
@@ -44,4 +44,4 @@ Sıkıştırılmış görüntüler sayfanın belleğinde en fazla24MiB/192 kayı
 
 Telefon yataya döndüğünde aynı kompozisyon çift sayfa açılır; dikeye dönüşte önceki tercih ve sağ/sol sayfa korunur. Otomatik dönüş kalıcı tercihi yazmaz; elle görünüm seçimi serbesttir. Albüm fotoğrafı500ms basılı tutmayla orijinal dosyasından açılır. Kısa dokunuş,8px üstü hareket, iptal ve çoklu dokunma yanlışlıkla fotoğraf açmaz. Kapak kısa dokunuşla açılır; klavye için orijinal fotoğraf eylemleri odakta görünür.
 
-Dosya seçimi ve sürükleyip bırakma aynı yükleme hattını kullanır. Editör dosya listesini kayıt beklemeden kopyalar; Günler dosya seçicisi açık gün dialog’unun içindedir. Dosya içeriği JPEG/PNG/WebP olarak doğrulanır, işletim sisteminin boş MIME bilgisine bağlı kalınmaz. İşleme sırayla, dosya aktarımı en fazla iki eşzamanlı işte yapılır; 2560/1280/360px WebP kopyaları otomatik hazırlanırken orijinal korunur. Yeniden denemede yetkili upload-status sunucuda tamamlanan parçaları bildirir; yanıtı kaybolmuş kopya yeniden yazılmaz.
+Dosya seçimi ve sürükleyip bırakma aynı yükleme hattını kullanır. Editör dosya listesini kayıt beklemeden kopyalar; Takvim dosya seçicisi açık gün dialog’unun içindedir. Dosya içeriği JPEG/PNG/WebP olarak doğrulanır, işletim sisteminin boş MIME bilgisine bağlı kalınmaz. İşleme sırayla, dosya aktarımı en fazla iki eşzamanlı işte yapılır; 2560/1280/360px WebP kopyaları otomatik hazırlanırken orijinal korunur. Yeniden denemede yetkili upload-status sunucuda tamamlanan parçaları bildirir; yanıtı kaybolmuş kopya yeniden yazılmaz.

@@ -1,6 +1,6 @@
 import React,{useEffect,useId,useLayoutEffect,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
-import {MousePointer2,ArrowRight,X} from 'lucide-react';
+import {ArrowRight,X} from 'lucide-react';
 import {describeTour,type TourState} from '../lib/onboarding';
 
 type Box={x:number;y:number;w:number;h:number};
@@ -37,10 +37,10 @@ export default function Onboarding({state,onNext,onClose}:{state:TourState;onNex
   const invite=state.step==='invite',ready=invite||!!anchor.box,position=placement(anchor.box,anchor.w,anchor.h,panelH);
   return createPortal(<>
     {!invite&&anchor.box&&<svg className="tour-spotlight" width={anchor.w} height={anchor.h} aria-hidden="true"><defs><mask id={mask}><rect width="100%" height="100%" fill="white"/><rect x={anchor.box.x} y={anchor.box.y} width={anchor.box.w} height={anchor.box.h} rx="10" fill="black"/></mask></defs><rect width="100%" height="100%" fill="#080d19a8" mask={`url(#${mask})`}/><rect className="tour-target-ring" x={anchor.box.x} y={anchor.box.y} width={anchor.box.w} height={anchor.box.h} rx="10"/></svg>}
-    <aside ref={panel} className="usage-tour guided-tour" style={position} role="dialog" aria-modal="false" aria-labelledby="tour-title" aria-describedby="tour-description" data-tour-step={state.step}>
+    <aside ref={panel} className="usage-tour guided-tour" style={position} role="dialog" aria-modal="false" aria-labelledby="tour-title" aria-describedby={description.text?'tour-description':undefined} data-tour-step={state.step}>
       <div className="tour-top"><span>{description.chapter}</span><button className="icon-button" onClick={onClose} aria-label="Tanıtımı kapat"><X size={18}/></button></div>
-      <div className="tour-copy" aria-live="polite"><h2 id="tour-title">{description.title}</h2><p id="tour-description">{description.text}</p></div>
-      <div className="tour-actions">{description.next?<><button className="text-button" onClick={onClose}>{invite?'Geç':'Turu bitir'}</button><button className="button primary" disabled={!ready} onClick={onNext}>{description.next}<ArrowRight size={16}/></button></>:<p className="tour-required" role="status"><MousePointer2 size={17}/>{ready?description.action:'Ekran hazırlanıyor…'}</p>}</div>
+      <div className="tour-copy" aria-live="polite"><h2 id="tour-title">{description.title}</h2>{description.text&&<p id="tour-description">{description.text}</p>}</div>
+      {description.next?<div className="tour-actions"><button className="text-button" onClick={onClose}>{invite?'Geç':'Turu bitir'}</button><button className="button primary" disabled={!ready} onClick={onNext}>{description.next}<ArrowRight size={16}/></button></div>:!ready&&<p className="tour-required" role="status">Açılıyor…</p>}
     </aside>
   </>,anchor.host);
 }

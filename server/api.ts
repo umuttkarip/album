@@ -140,7 +140,7 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         if(b.updatedAt!==a.updated_at)fail(409,'Albüm değişti. Kaldırmadan önce yeniden kontrol et.');
         const assets=await env.DB.prepare('SELECT id FROM assets WHERE album_id=? AND deleted_at IS NULL').bind(a.id).all<{id:string}>();
         if(!Array.isArray(b.assetIds)||b.assetIds.length!==assets.results.length||assets.results.some(p=>!b.assetIds.includes(p.id)))fail(409,'Albümdeki fotoğraflar değişti. Yeniden kontrol et.');
-        if(a.purpose==='days')fail(400,'Günler alanı kaldırılamaz.');
+        if(a.purpose==='days')fail(400,'Takvim kaldırılamaz.');
         const now=Date.now();const r=await env.DB.prepare('UPDATE albums SET deleted_at=?,deleted_by=?,updated_at=? WHERE id=? AND updated_at=? AND deleted_at IS NULL RETURNING id').bind(now,u.id,now,a.id,a.updated_at).first();if(!r)fail(409,'Albüm değişti. Yeniden kontrol et.');
         return json({ok:true});
       }
@@ -199,7 +199,7 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
       }
       if(path[2]==='day'&&method==='PATCH'){
         const b=await body(req);if(b.day!==null&&!validDay(b.day))fail(400,'Fotoğraf tarihini kontrol et.');if(a.kind!=='photo'||!a.ready)fail(400,'Kaydedilmiş bir fotoğraf seç.');
-        const parent=await album(env,a.album_id,u,true);if(parent.visibility!=='shared')fail(400,'Günler için ortak bir fotoğraf seç.');
+        const parent=await album(env,a.album_id,u,true);if(parent.visibility!=='shared')fail(400,'Takvime eklemek için ortak bir fotoğraf seç.');
         await env.DB.prepare('UPDATE assets SET captured_on=? WHERE id=? AND deleted_at IS NULL').bind(b.day,a.id).run();return json({ok:true});
       }
       if(path[2]==='upload-status'&&path.length===3&&method==='GET'){
