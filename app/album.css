@@ -1086,3 +1086,12 @@ img[aria-busy=false] { transition:opacity .16s; }
 .tour-compact .tour-top>span,.tour-compact .tour-actions>.text-button{display:none;}
 .tour-compact .tour-actions{margin:0;}
 .tour-compact .tour-actions .button.primary{min-height:38px;padding:6px 12px;}
+
+.password-change-screen{min-height:100dvh;padding:28px clamp(24px,6vw,80px);display:flex;flex-direction:column;}
+.password-change-screen>section{width:min(100%,360px);margin:auto;padding:42px 0;}
+.password-change-screen h1{font-size:28px;line-height:1.25;font-weight:500;margin:0 0 30px;}
+.password-change-screen form{display:flex;flex-direction:column;gap:12px;}
+.password-change-screen label{font-size:14px;margin-top:8px;}
+.password-change-screen input{min-height:48px;width:100%;}
+.password-change-screen small{color:var(--muted);font-size:12px;margin-top:-6px;}
+.password-change-screen .button.primary{margin-top:16px;min-height:46px;}

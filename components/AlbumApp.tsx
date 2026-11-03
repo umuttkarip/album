@@ -1,6 +1,7 @@
 'use client';
 import Library from './Library';
 import Login from './Login';
+import ChangePassword from './ChangePassword';
 import ThemePicker from './ThemePicker';
 import Onboarding from './Onboarding';
 import {startTour,advanceTour,tourContext,tourFilter,TOUR_DAY,type TourState,type TourEvent,type TourRead} from '../lib/onboarding';
@@ -59,14 +60,15 @@ function AlbumContent(){
   useEffect(()=>{window.scrollTo(0,0);},[screen,section,user?.id]);
   useEffect(()=>{
     if(!user){tourAccount.current='';setTour(null);return;}
+    if(user.passwordChangeRequired){setTour(null);return;}
     if(tourAccount.current===user.id)return;
     const id=user.id;tourAccount.current=id;
     void post('auth/onboarding/claim').then(r=>{if(r.show&&tourAccount.current===id)setTour(startTour(null,true));}).catch(()=>{});
-  },[user?.id]);
+  },[user?.id,user?.passwordChangeRequired]);
   function openNewAlbum(){setTitle('');setDesignId('collage');setVisibility(filter==='personal'?'personal':'shared');setNewOpen(true);tourEvent({type:'new-album'});}
-  useEffect(()=>{void request('auth/me').then(async r=>{setUser(r.user);await refreshAlbums();}).catch(e=>{if(e.status!==401)setError(e.message);}).finally(()=>setBoot(false));},[]);
+  useEffect(()=>{void request('auth/me').then(async r=>{setUser(r.user);if(!r.user.passwordChangeRequired)await refreshAlbums();}).catch(e=>{if(e.status!==401)setError(e.message);}).finally(()=>setBoot(false));},[]);
   useEffect(()=>{if(!message)return;const t=setTimeout(()=>setMessage(''),4500);return()=>clearTimeout(t);},[message]);
-  async function login(e:React.FormEvent){e.preventDefault();setBusy(true);setError('');try{const r=await post('auth/login',{username,password});setUser(r.user);setPassword('');await refreshAlbums();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
+  async function login(e:React.FormEvent){e.preventDefault();setBusy(true);setError('');try{const r=await post('auth/login',{username,password});setUser(r.user);setPassword('');if(!r.user.passwordChangeRequired)await refreshAlbums();}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
   async function logout(){try{await post('auth/logout');clearImages();setUser(null);setData(null);setScreen('home');setSection('albums');setInspectPhoto(null);setPhotoId(null);setRemoval(null);setAccountMenu(false);setAlbums([]);}catch(e){setMessage((e as Error).message);}}
   async function openAlbum(id:string){setBusy(true);try{setData(await request(`albums/${id}`));setScreen('reader');tourEvent({type:'album-opened',id});}catch(e){setMessage((e as Error).message);}finally{setBusy(false);}}
   async function refreshData(){if(data)setData(await request(`albums/${data.album.id}`));}
@@ -79,6 +81,7 @@ function AlbumContent(){
   const tourOverlay=tour&&<Onboarding state={tour} onNext={nextTour} onClose={()=>setTour(null)}/>;
   if(boot)return <div className="boot-screen"><span className="wordmark">Album<span className="brand-dot"/></span><LoaderCircle className="spin" size={22}/></div>;
   if(!user)return <Login username={username} password={password} showPassword={showPassword} onUsername={setUsername} onPassword={setPassword} onShow={()=>setShowPassword(v=>!v)} onSubmit={e=>void login(e)} busy={busy} error={error}/>;
+  if(user.passwordChangeRequired)return <ChangePassword onComplete={updated=>{setUser(updated);void refreshAlbums().catch(e=>setMessage(e.message));}} onLogout={()=>void logout()}/>;
   if(data&&screen==='editor')return <><Suspense fallback={<div className="boot-screen"><LoaderCircle className="spin"/>Editör açılıyor</div>}><Editor key={data.album.id} album={data.album} spreads={data.spreads} assets={data.assets} user={user} initialId={editId} initialFocus={editFocus} onBack={()=>{setScreen('reader');tourEvent({type:'editor-back'});}} onRefresh={refreshData}/></Suspense>{tourOverlay}{message&&<div className="toast" role="status">{message}</div>}</>;
   const visible=albums.filter(a=>filter==='all'||filter==='shared'&&a.visibility==='shared'||filter==='personal'&&a.visibility==='personal'&&a.owner_id===user.id);
   const lightboxAsset=inspectPhoto||data?.assets.find(a=>a.id===photoId),header=<SiteHeader user={user} section={section} onSection={changeSection} onLogout={()=>void logout()} onHelp={beginTour}/>;

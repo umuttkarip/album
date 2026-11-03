@@ -1,6 +1,6 @@
 import { scryptSync, timingSafeEqual, randomBytes, createHash } from 'node:crypto';
 import type { User } from '../lib/model';
-export type AlbumEnv = { DB: D1Database; BUCKET: R2Bucket; ALBUM_UMUT_HASH?: string; ALBUM_SUDE_HASH?: string; ALBUM_ALLOWED_ORIGINS?: string };
+export type AlbumEnv = { DB: D1Database; BUCKET: R2Bucket; ALBUM_UMUT_HASH?: string; ALBUM_SUDE_HASH?: string; ALBUM_PASSWORD_KEY?:string; ALBUM_ALLOWED_ORIGINS?: string };
 export const SESSION_SECONDS = 30 * 86400;
 const cookieName = (req: Request) => new URL(req.url).protocol === 'https:' ? '__Host-album_session' : 'album_session';
 const sessionCookie = (req: Request, token: string, seconds = SESSION_SECONDS) => `${cookieName(req)}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${seconds}${new URL(req.url).protocol === 'https:' ? '; Secure' : ''}`;

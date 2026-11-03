@@ -6,6 +6,7 @@ import { validDesign, type DesignId } from '../lib/design';
 import { DAYS_ALBUM_ID,validDay,validMonth,type LibraryPhoto } from '../lib/photo-library';
 import {applyAlbumDesign} from './album-design';
 import {insertSpreads} from './insert-spreads';
+import {credential,accountUser,passwordHash,encryptPassword} from './passwords';
 
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 function fail(status: number, message: string): never { throw new ApiError(status,message); }
@@ -48,16 +49,31 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
       const attempt = await env.DB.prepare('SELECT count,window FROM attempts WHERE key=?').bind(key).first<{count:number;window:number}>();
       if (attempt && attempt.window > now-900000 && attempt.count >= 8) fail(429,'Çok fazla deneme yapıldı. 15 dakika sonra yeniden dene.');
       await env.DB.prepare('INSERT INTO attempts(key,count,window) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window<? THEN 1 ELSE count+1 END, window=CASE WHEN window<? THEN ? ELSE window END').bind(key,now,now-900000,now-900000,now).run();
-      const hash = name === 'umut' ? env.ALBUM_UMUT_HASH : name === 'sude' ? env.ALBUM_SUDE_HASH : undefined;
+      const saved=name==='sude'?await credential(env):null;
+      const hash = name === 'umut' ? env.ALBUM_UMUT_HASH : name === 'sude' ? saved?.password_hash||env.ALBUM_SUDE_HASH : undefined;
       if (!hash && ['umut','sude'].includes(name)) fail(503,'Hesap kurulumu henüz tamamlanmadı.');
       if (!hash || !verifyPassword(password,hash)) fail(401,'Kullanıcı adı veya şifre yanlış.');
       await env.DB.prepare('UPDATE attempts SET count=0 WHERE key=?').bind(key).run();
       const session=await createSession(req,env,name);
-      return json({user:{id:name,name:name==='umut'?'Umut':'Sude',admin:name==='umut'},...(crossOrigin?{token:session.token}:{})},200,crossOrigin?{}:{'Set-Cookie':session.cookie});
+      return json({user:{id:name,name:name==='umut'?'Umut':'Sude',admin:name==='umut',passwordChangeRequired:name==='sude'&&!saved},...(crossOrigin?{token:session.token}:{})},200,crossOrigin?{}:{'Set-Cookie':session.cookie});
     }
     const u = await currentUser(req,env); if (!u) fail(401,'Devam etmek için giriş yap.');
     if (path[0] === 'auth') {
-      if (path[1] === 'me' && method === 'GET') { const cookie=await renewSession(req,env); return json({user:u},200,cookie?{'Set-Cookie':cookie}:{}); }
+      if (path[1] === 'me' && method === 'GET') { const user=await accountUser(u,env),cookie=await renewSession(req,env); return json({user},200,cookie?{'Set-Cookie':cookie}:{}); }
+      if(path[1]==='password'&&path.length===2&&method==='POST'){
+        if(u.id!=='sude')fail(403,'Bu işlem bu hesap için kullanılamaz.');
+        if(await credential(env))fail(409,'Şifren zaten güncellendi. Sayfayı yenile.');
+        const b=await body(req),password=b.password;
+        if(typeof password!=='string'||password.length<8||password.length>256)fail(400,'Şifren 8–256 karakter olmalı.');
+        if(b.confirmPassword!==password)fail(400,'Şifreler aynı değil.');
+        if(verifyPassword(password,env.ALBUM_SUDE_HASH))fail(400,'Geçici şifrenden farklı bir şifre seç.');
+        if(!env.ALBUM_PASSWORD_KEY)fail(503,'Şifre kaydedilemedi. Yeniden dene.');
+        const encrypted=await encryptPassword(password,env.ALBUM_PASSWORD_KEY),hash=passwordHash(password),now=Date.now();
+        const saved=await env.DB.prepare("INSERT INTO user_credentials(user_id,password_hash,password_encrypted,updated_at) VALUES('sude',?,?,?) ON CONFLICT(user_id) DO NOTHING RETURNING user_id").bind(hash,encrypted,now).first();
+        if(!saved)fail(409,'Şifren başka bir oturumda güncellendi. Sayfayı yenile.');
+        // Keep the submitting session and its HttpOnly cookie unchanged.
+        return json({user:{...u,passwordChangeRequired:false}});
+      }
       if (path[1] === 'onboarding' && path[2] === 'claim' && method === 'POST') {
         // Temporary review mode requested by the account owner; existing seen records stay intact.
         if(u.id==='sude')return json({show:true,repeatOnRefresh:true});
