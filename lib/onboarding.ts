@@ -20,7 +20,7 @@ export function advanceTour(state:TourState|null,event:TourEvent):TourState|null
     case 'editor-back':return state.step==='editor-back'||state.step==='tools'?go('library-back'):state;
     case 'library-back':return state.step==='library-back'?go('days'):state;
     case 'days':return state.step==='days'?go('calendar'):state;
-    case 'day-opened':return state.step==='open-day'&&event.day===TOUR_DAY?go('upload'):state;
+    case 'day-opened':return (state.step==='calendar'||state.step==='open-day')&&event.day===TOUR_DAY?go('upload'):state;
     case 'day-closed':return state.step==='close-day'||state.step==='upload'?go('private'):state;
     case 'filter':return state.step==='private'&&event.value==='personal'?go('new-album'):state;
     case 'new-album':return state.step==='new-album'?go('create'):state;
@@ -47,7 +47,7 @@ export function describeTour(state:TourState):TourDescription {
     'editor-back':{title:'Albüme dön',text:'',target:target('editor-back'),chapter:'3 / 5'},
     'library-back':{title:'Ana sayfaya dön',text:'',target:target('reader-back'),chapter:'3 / 5'},
     days:{title:'Takvim’i aç',text:'',target:target('nav-days'),chapter:'4 / 5'},
-    calendar:{title:'Fotoğraflı takvim',text:'Daha önceki fotoğraflarımızı günlerine göre yükledim. Sen de geçmişe veya aynı günlere fotoğraf ekleyebilirsin.',target:target('calendar'),chapter:'4 / 5',next:'Devam'},
+    calendar:{title:'Fotoğraflı takvim',text:'Daha önceki fotoğraflarımızı günlerine göre yükledim. Sen de fotoğraf ekleyebilirsin. 3 Ekim’i aç.',target:target('day-'+TOUR_DAY),chapter:'4 / 5'},
     'open-day':{title:'3 Ekim Cumartesi’yi aç',text:'',target:target('day-'+TOUR_DAY),chapter:'4 / 5'},
     upload:{title:'Fotoğraf ekle',text:'Buradan seçtiğin güne fotoğraf yükleyebilirsin. Tarihi değiştirerek başka bir gün de seçebilirsin.',target:target('day-upload'),chapter:'4 / 5',next:'Devam'},
     'close-day':{title:'Günü kapat',text:'',target:target('day-close'),chapter:'4 / 5'},
@@ -56,4 +56,14 @@ export function describeTour(state:TourState):TourDescription {
     create:{title:'Albümünü oluştur',text:'Albümüne bir isim verip tasarımını seçtikten sonra albümünü oluşturabilirsin.',target:'#album-title',chapter:'5 / 5',next:'Tamam'},
   };
   return steps[state.step];
+}
+
+export function tourInteractionTargets(state:TourState):string[]{
+  if(state.step==='invite')return ['body'];
+  if(state.step==='tools')return ['.canvas-workspace','.inspector','.editor-toolbar','.extra-tools','input[type="file"]','.upload-panel'];
+  if(state.step==='browse')return ['[data-tour="reader-book"]','.page-navigation','.cover-link','.page-filmstrip'];
+  if(state.step==='create')return ['dialog[open]'];
+  if(state.step==='upload')return ['[data-tour="day-upload"]','input[type="file"]'];
+  if(['sections','shared','personal'].includes(state.step))return [];
+  return [describeTour(state).target].filter(Boolean);
 }

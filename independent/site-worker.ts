@@ -7,7 +7,7 @@ export default {
     headers.set('X-Content-Type-Options','nosniff');
     headers.set('Referrer-Policy','same-origin');
     headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
-    if(headers.get('Content-Type')?.includes('text/html'))headers.set('Cache-Control','no-cache');
+    if(headers.get('Content-Type')?.includes('text/html')||new URL(request.url).pathname==='/version.json')headers.set('Cache-Control','no-store');
     return new Response(response.body,{status:response.status,headers});
   },
 };

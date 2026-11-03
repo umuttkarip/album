@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {startTour,advanceTour,describeTour,tourContext,tourFilter,TOUR_DAY,type TourState,type TourEvent} from '../lib/onboarding';
+import {startTour,advanceTour,describeTour,tourContext,tourFilter,TOUR_DAY,tourInteractionTargets,type TourState,type TourEvent} from '../lib/onboarding';
 const send=(state:TourState,event:TourEvent)=>advanceTour(state,event)!;
 const advanceToAlbum=()=>['next','next','next'].reduce(s=>send(s,{type:'next'}),startTour('album'));
 test('album opening waits for the actual album, then browsing has no page quota or automatic advance',()=>{
@@ -24,4 +24,15 @@ test('every action has a real target and no bypass button; no album or empty lib
 test('closing a new-album form returns to its launcher; unrelated events never skip required work',()=>{
   const state={...startTour('a'),step:'create' as const};assert.equal(send(state,{type:'create-closed'}).step,'new-album');assert.equal(advanceTour(null,{type:'created'}),null);
   const browsing={...state,step:'browse' as const};for(const event of [{type:'created'},{type:'days'},{type:'library-back'}] as TourEvent[])assert.equal(send(browsing,event),browsing);
+});
+
+
+test('calendar accepts the highlighted day directly, while unrelated days and navigation never advance it',()=>{
+ const calendar={...startTour('album'),step:'calendar' as const};
+ assert.equal(send(calendar,{type:'day-opened',day:TOUR_DAY}).step,'upload');
+ assert.equal(send(calendar,{type:'day-opened',day:'2026-10-04'}),calendar);
+ assert.equal(describeTour(calendar).next,undefined);
+ assert.deepEqual(tourInteractionTargets(calendar),['[data-tour="day-2026-10-03"]']);
+ assert.deepEqual(tourInteractionTargets({...calendar,step:'sections'}),[]);
+ const tools=tourInteractionTargets({...calendar,step:'tools'});for(const region of ['.canvas-workspace','.inspector','.editor-toolbar'])assert.ok(tools.includes(region));assert.ok(!tools.includes('body'));
 });
