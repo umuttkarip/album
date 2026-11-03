@@ -20,5 +20,5 @@ export function PrivateImage({ src, loading, alt, ...props }: React.ImgHTMLAttri
     if (observer && ref.current) observer.observe(ref.current); else void start();
     return () => { controller.abort(); observer?.disconnect(); if (url) URL.revokeObjectURL(url); };
   }, [src, loading]);
-  return <img ref={ref} {...props} src={blobUrl || undefined} alt={failed ? 'Fotoğraf yüklenemedi' : alt} aria-busy={!blobUrl && !failed} />;
+  return <img ref={ref} draggable={false} {...props} src={blobUrl || undefined} alt={failed ? 'Fotoğraf yüklenemedi' : alt} aria-busy={!blobUrl && !failed} />;
 }

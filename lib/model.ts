@@ -27,6 +27,8 @@ export const assetUrl = (id: string, variant = 'display') => apiUrl(`assets/${en
 export const newElement = (type: ElementType, extra: Partial<PageElement> = {}): PageElement => ({ id: uid(), type, x: 100, y: 150, w: 650, h: 800, rotation: 0, opacity: 1, ...extra });
 export const templates = [
   { id: 'single', name: 'Ortada', count: 2, description: 'Her sayfada bir fotoğraf' },
+  { id: 'editorial', name: 'Dergi / Anı', count: 2, description: 'Geniş fotoğraf ve hikâye alanı' },
+  { id: 'story', name: 'Hikâye', count: 3, description: 'Fotoğraf ve el yazısı notu' },
   { id: 'full', name: 'Tam sayfa', count: 2, description: 'Kenarlara kadar fotoğraf' },
   { id: 'duo', name: 'İkili', count: 4, description: 'Her sayfada iki fotoğraf' },
   { id: 'grid', name: 'Dörtlü', count: 8, description: 'Dört fotoğraflı sayfalar' },
@@ -58,9 +60,13 @@ export function applyTemplate(id: string, assets: readonly Pick<Asset, 'id' | 'w
     const offset = page * PAGE_W;
     const cells = id === 'grid' ? [[75,160,405,405],[520,160,405,405],[75,660,405,405],[520,660,405,405]]
       : id === 'duo' ? [[80,110,840,480],[80,660,840,480]]
+      : id === 'story' ? (page === 0 ? [[90,130,820,480],[90,660,820,480]] : [[110,140,780,680]])
+      : id === 'editorial' ? [[100,140,800,820]]
       : id === 'full' ? [[0,0,1000,1250]] : id === 'note' ? [[90,140,820,800]] : [[90,150,820,950]];
     for (const [x,y,w,h] of cells) { const a = assets[n++]; if (a) doc.elements.push(newElement('photo', { assetId: a.id, x: x + offset, y, w, h, fit: id === 'full' || id === 'grid' ? 'cover' : 'contain', frame: id !== 'full' })); }
     if (id === 'note' && doc.elements.some(e => e.x >= offset && e.x < offset + PAGE_W)) doc.elements.push(newElement('text', { x: offset + 100, y: 1020, w: 800, h: 120, text: '', size: 42, font: 'Caveat', color: paper === 'charcoal' ? '#e6e8df' : '#444b47', align: 'center' }));
+    if (id === 'editorial' && doc.elements.some(e => e.x >= offset && e.x < offset + PAGE_W)) doc.elements.push(newElement('text', { x: offset + 120, y: 1010, w: 760, h: 120, text: '', size: page === 0 ? 38 : 30, font: page === 0 ? 'Caveat' : 'Literata', color: paper === 'charcoal' ? '#e6e8df' : '#444b47', align: page === 0 ? 'center' : 'left' }));
+    if (id === 'story' && page === 1 && doc.elements.some(e => e.x >= offset && e.x < offset + PAGE_W)) doc.elements.push(newElement('text', { x: offset + 130, y: 870, w: 740, h: 260, text: '', size: 42, font: 'Caveat', color: paper === 'charcoal' ? '#e6e8df' : '#444b47', align: 'left' }));
   }
   return doc;
 }

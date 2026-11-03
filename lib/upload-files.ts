@@ -4,6 +4,12 @@ export const STICKER_ACCEPT='image/png,image/webp,.png,.webp';
 // FileList and the drag data store can be cleared as soon as their event ends.
 export const snapshotFiles=(files:ArrayLike<File>|null|undefined):File[]=>Array.from(files||[]);
 export const isFileDrag=(data:Pick<DataTransfer,'types'>)=>Array.from(data.types).includes('Files');
+// Browser images may expose a generated File as well as HTML/URL drag data.
+// Only files brought in from outside the document are upload candidates.
+export const isExternalFileDrag=(data:Pick<DataTransfer,'types'>,internal=false)=>{
+  const types=Array.from(data.types);
+  return !internal&&types.includes('Files')&&!types.some(type=>['text/html','text/uri-list','application/x-album-internal'].includes(type));
+};
 
 export async function imageMime(file:Blob){
   if(!file.size)throw new Error('Dosya boş. Başka bir fotoğraf seç.');

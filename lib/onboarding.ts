@@ -60,7 +60,7 @@ export function describeTour(state:TourState):TourDescription {
 
 export function tourInteractionTargets(state:TourState):string[]{
   if(state.step==='invite')return ['body'];
-  if(state.step==='tools')return ['.canvas-workspace','.inspector','.editor-toolbar','.extra-tools','input[type="file"]','.upload-panel'];
+  if(state.step==='tools')return ['.canvas-workspace','.inspector','.editor-toolbar','.extra-tools','input[type="file"]','.upload-panel','.photo-options','.confirm-removal'];
   if(state.step==='browse')return ['[data-tour="reader-book"]','.page-navigation','.cover-link','.page-filmstrip'];
   if(state.step==='create')return ['dialog[open]'];
   if(state.step==='upload')return ['[data-tour="day-upload"]','input[type="file"]'];

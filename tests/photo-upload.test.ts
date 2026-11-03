@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {snapshotFiles,imageMime,isFileDrag} from '../lib/upload-files';
+import {snapshotFiles,imageMime,isFileDrag,isExternalFileDrag} from '../lib/upload-files';
 import {preparePhoto,uploadJobs,type UploadJob} from '../lib/client';
 
 const jpeg=new Uint8Array([255,216,255,224,0,0,0,0,0,0,0,0]);
@@ -39,4 +39,13 @@ test('browser pipeline preserves originals, bounds both processing and transfers
    assert.equal(transfers.filter(t=>t.id==='test-1'&&t.variant==='original').length,1);assert.equal(transfers.filter(t=>t.id==='test-1'&&t.variant==='display').length,1);assert.equal(transfers.filter(t=>t.id==='test-1'&&t.variant==='thumb').length,2);
    assert.equal(transfers.filter(t=>t.id==='test-2'&&t.variant==='screen').length,1);assert.ok(jobs.every(j=>!j.variants));
  }finally{Object.assign(globalThis,native);}
+});
+
+test('internal image drags never become uploads, while operating-system files remain accepted',()=>{
+ assert.equal(isExternalFileDrag({types:['Files']}),true);
+ assert.equal(isExternalFileDrag({types:['Files']},true),false);
+ assert.equal(isExternalFileDrag({types:['Files','text/html']}),false);
+ assert.equal(isExternalFileDrag({types:['Files','text/uri-list']}),false);
+ assert.equal(isExternalFileDrag({types:['Files','application/x-album-internal']}),false);
+ assert.equal(isExternalFileDrag({types:['text/plain']}),false);
 });

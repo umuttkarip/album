@@ -11,3 +11,14 @@ test('rotation across the spine preserves the whole composition',()=>{const doc=
 test('schema rejects invalid dimensions, duplicate identifiers and nonfinite stroke values',()=>{const d=blankDoc();d.elements=[newElement('text',{text:'Not',size:35,font:'Literata'})];assert.ok(validDoc(d));assert.equal(validDoc({...d,elements:[{...d.elements[0],w:-1}]}),false);assert.equal(validDoc({...d,elements:[d.elements[0],d.elements[0]]}),false);assert.equal(validDoc({...d,elements:[newElement('stroke',{points:[0,0,1,NaN],size:8})]}),false);});
 test('cover templates never invent a second page',()=>{const d=applyTemplate('grid',Array.from({length:8},(_,n)=>({id:String(n),width:100,height:100})),'charcoal',true);assert.equal(d.elements.length,4);assert.ok(d.elements.every(e=>e.x<1000));assert.equal(spansCenter(d),false);});
 test('contain keeps the full photo; cover and crop offsets remain bounded',()=>{const e=newElement('photo',{w:500,h:500});const a=photoBox(e,1000,500);assert.equal(a.w,500);assert.equal(a.h,250);assert.equal(a.y,125);const b=photoBox({...e,fit:'cover',crop:{scale:2,x:1,y:-1}},1000,500);assert.ok(b.x<=0&&b.x+b.w>=500);assert.ok(b.y<=0&&b.y+b.h>=500);});
+
+test('editorial and story templates preserve sources, fit the page and leave notes to the user',()=>{
+ const photos=Array.from({length:3},(_,i)=>({id:'editorial-'+i,width:i%2?1200:800,height:i%2?800:1200}));
+ for(const [id,count]of [['editorial',2],['story',3]] as const){
+  const doc=applyTemplate(id,photos),images=doc.elements.filter(e=>e.type==='photo');
+  assert.equal(images.length,count);assert.deepEqual(images.map(e=>e.assetId),photos.slice(0,count).map(p=>p.id));
+  assert.ok(doc.elements.filter(e=>e.type==='text').every(e=>e.text===''));
+  assert.ok(doc.elements.every(e=>e.x>=0&&e.y>=0&&e.x+e.w<=2000&&e.y+e.h<=1250));
+  const cover=applyTemplate(id,photos,'ivory',true);assert.ok(cover.elements.every(e=>e.x+e.w<=1000));
+ }
+});
