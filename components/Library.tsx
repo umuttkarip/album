@@ -32,9 +32,9 @@ export default function Library({ user, albums, filter, onFilter, onNew, onAlbum
   return <div className="home-screen">
     <SiteHeader user={user} section="albums" onSection={onSection} onLogout={onLogout} onHelp={onHelp}/>
     <main className="library">
-      <div className="library-heading"><h1>Albümler</h1><button className="button primary" onClick={onNew}><Plus size={19}/>Yeni albüm</button></div>
-      <nav className="library-tabs" aria-label="Albüm türü">{[['shared','Ortak'],['personal','Özel'],...(user.admin?[['all','Tümü']]:[])].map(([id,label])=><button key={id} aria-pressed={filter===id} className={filter===id?'active':''} onClick={()=>onFilter(id)}>{label}</button>)}</nav>
-      {visible.length?<div className={'album-shelf'+(visible.length===1?' single-album':'')}>{visible.map((album,i)=><button className="album-entry" key={album.id} disabled={busy} onClick={()=>onAlbum(album.id)} style={{'--entry-index':i} as React.CSSProperties}>
+      <div className="library-heading"><h1>Albümler</h1><button data-tour="new-album" className="button primary" onClick={onNew}><Plus size={19}/>Yeni albüm</button></div>
+      <nav className="library-tabs" aria-label="Albüm türü">{[['shared','Ortak'],['personal','Özel'],...(user.admin?[['all','Tümü']]:[])].map(([id,label])=><button data-tour={'filter-'+id} key={id} aria-pressed={filter===id} className={filter===id?'active':''} onClick={()=>onFilter(id)}>{label}</button>)}</nav>
+      {visible.length?<div className={'album-shelf'+(visible.length===1?' single-album':'')}>{visible.map((album,i)=><button data-tour="album" data-album-id={album.id} className="album-entry" key={album.id} disabled={busy} onClick={()=>onAlbum(album.id)} style={{'--entry-index':i} as React.CSSProperties}>
         <div className="album-object"><Cover album={album}/><span className="open-album-cue"><ArrowUpRight size={20}/></span></div>
         <div className="album-caption"><h2>{album.title}</h2><p>{album.photo_count||0} fotoğraf<span>·</span>{album.visibility==='shared'?'Ortak':'Özel'}</p></div>
       </button>)}</div>:<div className="library-empty" aria-label="Albüm yok"><div className="empty-stack" aria-hidden="true"><span/><span/><span><Plus size={32}/></span></div></div>}

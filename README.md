@@ -18,7 +18,7 @@ Asıl site yalnız host'a ait __Host-album_session çerezini kullanır: HttpOnly
 
 Özel albümleri sahibi ve yönetici görür; yalnız sahibi düzenler. Ortak albümleri iki hesap düzenler. Bütün fotoğraf varyantları albüm yetkisiyle kontrol edilir; R2 herkese açık değildir. Silinenler gizlenir ve yönetici arşivinde kırmızı çerçeveyle korunur. Eski album-api servisi ve veriler uyumluluk için yerinde tutulur.
 
-İlk kullanım daveti hesap başına atomik olarak bir kez sunulur. Dört adımlı tur albüm inceleme, düzenleme, yeni albüm/Ortak–Özel ve Günler'i anlatır. Hesap menüsündeki Kısa kullanım tekrar açar; gerçek belgeleri değiştiren alıştırma yoktur.
+Etkileşimli tur doğru ekranı açar, gerçek kontrolleri vurgular ve eylem adımlarında gerçek tıklamaları bekler. Ana sayfa, dört farklı sayfa, çift görünüm, editör/iki geri, Günler/bir tarih ve özel albüm formu izlenir; otomatik fotoğraf veya albüm yazımı yapılmaz. Menüdeki Kısa kullanım yeniden açar. Sude için geçici test ayarı her yenilemede davet gösterir; Umut bir kez davranışını ve mevcut seen kayıtlarını korur.
 
 ## Kapak ve sayfa düzeni
 

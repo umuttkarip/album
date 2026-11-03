@@ -59,6 +59,8 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
     if (path[0] === 'auth') {
       if (path[1] === 'me' && method === 'GET') { const cookie=await renewSession(req,env); return json({user:u},200,cookie?{'Set-Cookie':cookie}:{}); }
       if (path[1] === 'onboarding' && path[2] === 'claim' && method === 'POST') {
+        // Temporary review mode requested by the account owner; existing seen records stay intact.
+        if(u.id==='sude')return json({show:true,repeatOnRefresh:true});
         const row=await env.DB.prepare('INSERT INTO user_preferences(user_id,onboarding_seen_at) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING RETURNING user_id').bind(u.id,Date.now()).first();
         return json({show:!!row});
       }

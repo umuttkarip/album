@@ -35,9 +35,9 @@ test('an expired cookie cannot authenticate or renew; a legacy unprefixed HTTPS 
 test('cookie writes retain origin checks; arbitrary origins cannot log in or claim the tour',async()=>{
   const f=fixture();try{assert.equal((await f.send('auth/login','POST',{username:'umut',password},{Origin:'https://untrusted.test'})).status,403);assert.equal((await f.send('auth/onboarding/claim','POST',{})).status,401);assert.equal((await f.send('auth/onboarding/claim','POST',{}, {...f.bearer(),Origin:'https://untrusted.test'})).status,403);assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM user_preferences').get()!.n,0);}finally{f.sqlite.close();}
 });
-test('the tour invitation is claimed once per account, including overlapping tabs and subsequent sessions',async()=>{
+test('Umut claims the invitation once; Sude receives it on every refresh without resetting seen records',async()=>{
   const f=fixture();try{const headers=f.bearer();const responses=await Promise.all([f.send('auth/onboarding/claim','POST',{},headers),f.send('auth/onboarding/claim','POST',{},headers)]);assert.deepEqual((await Promise.all(responses.map(r=>r.json()))).map((v:any)=>v.show).sort(),[false,true]);
-    assert.equal((await(await f.send('auth/onboarding/claim','POST',{},headers)).json() as any).show,false);assert.equal((await(await f.send('auth/onboarding/claim','POST',{},f.bearer('sude'))).json() as any).show,true);assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM user_preferences').get()!.n,2);
+    assert.equal((await(await f.send('auth/onboarding/claim','POST',{},headers)).json() as any).show,false);assert.equal((await(await f.send('auth/onboarding/claim','POST',{},f.bearer('sude'))).json() as any).show,true);assert.equal((await(await f.send('auth/onboarding/claim','POST',{},f.bearer('sude'))).json() as any).show,true);assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM user_preferences').get()!.n,1);
   }finally{f.sqlite.close();}
 });
 
