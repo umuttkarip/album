@@ -4,7 +4,7 @@ import type {User} from '../lib/model';
 
 export type Credential={password_hash:string;password_encrypted:string;updated_at:number};
 export const credential=(env:AlbumEnv)=>env.DB.prepare("SELECT password_hash,password_encrypted,updated_at FROM user_credentials WHERE user_id='sude'").first<Credential>();
-export async function accountUser(user:User,env:AlbumEnv):Promise<User>{return {...user,passwordChangeRequired:user.id==='sude'&&!(await credential(env))};}
+export async function accountUser(user:User,_env:AlbumEnv):Promise<User>{return {...user,passwordChangeRequired:false};}
 export function passwordHash(password:string){const salt=randomBytes(16).toString('hex');return salt+':'+scryptSync(password,salt,64,{N:32768,r:8,p:3,maxmem:64*1024*1024}).toString('hex');}
 async function key(value?:string){
   if(!value||!/^([A-Za-z0-9+/]{43}=)$/.test(value))throw Error('Password encryption key unavailable');
