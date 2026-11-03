@@ -8,9 +8,18 @@ export const orientationReadingMode=(saved:ReadingMode,w:number,h:number):Readin
 export function matchingViewIndex(views:ReadingView[],spreadId:string,side:'left'|'right'){
   return Math.max(0,views.findIndex(v=>v.spread.id===spreadId&&(v.region==='full'||v.region==='cover'||v.region===side)));
 }
-export function readerPageSize(frame:{w:number;h:number},mode:ReadingMode,landscape=false){
+export function readerPageSize(frame:{w:number;h:number},mode:ReadingMode,landscape=false,immersive=false){
+  const aspect=mode==='book'?1.6:.8;
+  if(landscape&&immersive){
+    const padY=Math.max(6,Math.min(14,Math.round(frame.h*0.025)));
+    const padX=Math.max(12,Math.min(24,Math.round(frame.w*0.02)));
+    const maxH=Math.max(60,frame.h-padY*2);
+    const maxW=Math.max(80,frame.w-padX*2);
+    const w=Math.max(80,Math.min(maxW,maxH*aspect));
+    return {w:Math.round(w),h:Math.round(w/aspect)};
+  }
   const rails=landscape&&frame.w>=720;
-  const aspect=mode==='book'?1.6:.8,reserve=rails?0:landscape?54:76,edge=rails?248:landscape?28:40;
+  const reserve=rails?0:landscape?54:76,edge=rails?248:landscape?28:40;
   const w=Math.max(80,Math.min(frame.w-edge,(frame.h-reserve-(rails?48:landscape?12:40))*aspect));
   return {w,h:w/aspect};
 }

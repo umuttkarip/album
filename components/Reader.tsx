@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
-import { ArrowLeft, BookOpen, RectangleVertical, ChevronLeft, ChevronRight, Pencil, Plus, Grid2X2, X, MoreHorizontal, ImagePlus, LoaderCircle,Smartphone } from 'lucide-react';
+import { ArrowLeft, BookOpen, RectangleVertical, ChevronLeft, ChevronRight, Pencil, Plus, Grid2X2, X, MoreHorizontal, ImagePlus, LoaderCircle, Smartphone, Maximize2, Minimize2 } from 'lucide-react';
 import { canEdit, spansCenter, type Album, type Spread, type Asset, type User, type PageElement } from '../lib/model';
 import { readingViews, hitPhoto, type ReadingView } from '../lib/render';
 import { resolveSpreads } from '../lib/composition';
@@ -21,6 +21,27 @@ export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,o
   const [preference,setPreference]=useState<ReadingMode>(()=>typeof window==='undefined'?savedPreference:orientationReadingMode(savedPreference,window.innerWidth,window.innerHeight));
   const [landscape,setLandscape]=useState(()=>typeof window!=='undefined'&&window.innerWidth>window.innerHeight&&window.innerHeight<=520);
   const [phoneBook,setPhoneBook]=useState(()=>typeof window!=='undefined'&&phoneLandscape(window.innerWidth,window.innerHeight)),previousOrientation=useRef(phoneBook);
+  const [isFullscreen,setIsFullscreen]=useState(false);
+  useEffect(()=>{
+    const update=()=>setIsFullscreen(!!(document.fullscreenElement||(document as any).webkitFullscreenElement));
+    document.addEventListener('fullscreenchange',update);
+    document.addEventListener('webkitfullscreenchange' as any,update);
+    return()=>{
+      document.removeEventListener('fullscreenchange',update);
+      document.removeEventListener('webkitfullscreenchange' as any,update);
+    };
+  },[]);
+  async function toggleFullscreen(){
+    try{
+      if(!document.fullscreenElement&&!(document as any).webkitFullscreenElement){
+        if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();
+        else if((document.documentElement as any).webkitRequestFullscreen)await (document.documentElement as any).webkitRequestFullscreen();
+      }else{
+        if(document.exitFullscreen)await document.exitFullscreen();
+        else if((document as any).webkitExitFullscreen)await (document as any).webkitExitFullscreen();
+      }
+    }catch{}
+  }
   useEffect(()=>{const update=()=>{setLandscape(window.innerWidth>window.innerHeight&&window.innerHeight<=520);setPhoneBook(phoneLandscape(window.innerWidth,window.innerHeight));};window.addEventListener('resize',update);return()=>window.removeEventListener('resize',update);},[]);
   const views=useMemo(()=>readingViews(spreads,preference),[spreads,preference]);
   const [index,setIndex]=useState(()=>{if(tourFromCover)return 0;try{const saved=JSON.parse(localStorage.getItem(`album:position:${user.id}:${album.id}`)||'null');if(saved)return savedViewIndex(views,saved);}catch{}return 0;});
@@ -31,15 +52,17 @@ export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,o
   const mode=readingMode(current,preference),forcedBook=requiresOpenBook(current.spread.doc);
   const coverDoc=spreads.find(s=>s.doc.cover)?.doc||current.spread.doc;
   const clearIdle=()=>{if(idleTimer.current)clearTimeout(idleTimer.current);idleTimer.current=null;};
+  const immersiveRef=useRef(immersive);
+  useEffect(()=>{immersiveRef.current=immersive;},[immersive]);
   function revealControls(){clearIdle();setImmersive(false);if(mobile&&!guideActive&&!thumbnails&&!current.spread.doc.cover)idleTimer.current=setTimeout(()=>{if(!document.activeElement?.matches(':focus-visible'))setImmersive(true);},4000);}
   useEffect(()=>{const media=matchMedia('(max-width:900px)'),change=()=>setMobile(media.matches);media.addEventListener('change',change);return()=>media.removeEventListener('change',change);},[]);
-  useEffect(()=>{revealControls();return clearIdle;},[mobile,guideActive,thumbnails,current.key]);
+  useEffect(()=>{if(!immersiveRef.current)revealControls();return clearIdle;},[mobile,guideActive,thumbnails,current.key]);
 
   useEffect(()=>{onTourRead?.({book:mode==='book',pages:current.spread.doc.cover?[]:current.region==='full'?[current.spread.id+':left',current.spread.id+':right']:[current.key]});},[current.key,mode,onTourRead]);
   const binding=useMemo(()=>boundBook(spreads,mode),[spreads,mode]),cursor=boundCursor(spreads,current,mode);
-  function displaySize(value:ReadingMode){return readerPageSize(frameSize,value,landscape);}
+  function displaySize(value:ReadingMode){return readerPageSize(frameSize,value,landscape,immersive||isFullscreen);}
   useEffect(()=>{const m=matchMedia('(prefers-reduced-motion: reduce)'),update=()=>setReduced(m.matches);update();m.addEventListener('change',update);return()=>m.removeEventListener('change',update);},[]);
-  const ensure=useCallback((v:ReadingView)=>{const targetMode=readingMode(v,preference),size=readerPageSize(frameSize,targetMode,landscape),width=readingResolution({w:size.w+40,h:size.h+40},targetMode,window.devicePixelRatio);return renderer.view(v,targetMode,width);},[preference,frameSize.w,frameSize.h,landscape]);
+  const ensure=useCallback((v:ReadingView)=>{const targetMode=readingMode(v,preference),size=readerPageSize(frameSize,targetMode,landscape,immersive||isFullscreen),width=readingResolution({w:size.w+40,h:size.h+40},targetMode,window.devicePixelRatio);return renderer.view(v,targetMode,width);},[preference,frameSize.w,frameSize.h,landscape,immersive,isFullscreen]);
   useEffect(()=>{let alive=true;if(!canvas)setLoading(true);void ensure(current).then(c=>{if(alive){setCanvas(c);setLoading(false);}}).catch(()=>{if(alive){setError('Sayfa yüklenemedi.');setLoading(false);}});if(views[index+1])void ensure(views[index+1]);if(views[index-1])void ensure(views[index-1]);try{localStorage.setItem(`album:position:${user.id}:${album.id}`,JSON.stringify({key:current.key,id:current.spread.id}));}catch{}return()=>{alive=false;};},[index,views,ensure,current,user.id,album.id]);
   useEffect(()=>{const host=frame.current;if(!host)return;const r=new ResizeObserver(([e])=>setFrameSize({w:e.contentRect.width,h:e.contentRect.height}));r.observe(host);return()=>r.disconnect();},[]);
   useEffect(()=>()=>{clearHold();if(pointer.current)pointer.current.up=true;pointer.current=null;motionRef.current=null;modeGeneration.current++;renderer.clear();},[]);
@@ -74,29 +97,69 @@ export default function Reader({album,spreads:sourceSpreads,assets,user,onBack,o
     if(mode==='book')x=nx*2000;else if(current.region==='right')x+=1000;else if(current.region==='full'){x=nx*2000;y=(y-312.5)*2;}
     return y<0||y>1250?undefined:hitPhoto(current.spread.doc,x,y)?.assetId;
   }
-  function inspect(id:string){onPhoto(id,current.spread.doc.elements.find(e=>e.type==='photo'&&e.assetId===id));}
-  function clearHold(){if(holdTimer.current!==null)clearTimeout(holdTimer.current);holdTimer.current=null;}
-  function down(e:React.PointerEvent){if(!e.isPrimary){clearHold();return;}if(e.button!==0||motionRef.current||!canvas||loading)return;clearHold();const gesture={x:e.clientX,y:e.clientY,time:performance.now(),lastX:e.clientX,dragged:false,loading:false,up:false,modeChange:false,held:false,woke:immersive};revealControls();pointer.current=gesture;e.currentTarget.setPointerCapture(e.pointerId);
-    const id=photoAt(e);if(id)holdTimer.current=setTimeout(()=>{holdTimer.current=null;if(pointer.current!==gesture||gesture.up||gesture.dragged)return;gesture.held=true;gesture.up=true;pointer.current=null;inspect(id);},500);
+  function inspect(id:string){
+    const el=current.spread.doc.elements.find(e=>e.type==='photo'&&e.assetId===id);
+    onPhoto(id,el);
   }
-  async function move(e:React.PointerEvent){const p=pointer.current;if(!p||p.up)return;const pageWidth=e.currentTarget.clientWidth;p.lastX=e.clientX;const dx=e.clientX-p.x,dy=e.clientY-p.y;if(Math.hypot(dx,dy)>8)clearHold();if(!p.dragged&&(Math.abs(dx)<10||Math.abs(dx)<Math.abs(dy)*1.25))return;
-    if(!p.dragged){p.dragged=true;if(flat||reduced)return;const next=index+(dx<0?1:-1);if(next<0||next>=views.length)return;if(readingMode(views[next],preference)!==mode){p.modeChange=true;return;}
-      const generation=++modeGeneration.current;p.loading=true;let to:HTMLCanvasElement;
-      try{to=await ensure(views[next]);}catch{p.loading=false;if(pointer.current===p){p.up=true;pointer.current=null;setError('Sayfa yüklenemedi.');}return;}
-      p.loading=false;if(p.up||pointer.current!==p||generation!==modeGeneration.current)return;
-      const t:Turn={id:next,from:canvas!,to,direction:dx<0?1:-1,sourceCover:current.region==='cover',targetCover:views[next].region==='cover',fromCursor:cursor,toCursor:boundCursor(spreads,views[next],mode),start:performance.now(),duration:420,fromP:0,toP:1,dragging:true,progress:0};motionRef.current=t;setTurn(t);}
-    const t=motionRef.current;if(t?.dragging){const progress=Math.max(0,Math.min(.98,(p.x-p.lastX)*t.direction/Math.max(1,pageWidth*.75)));const updated={...t,progress};motionRef.current=updated;setTurn(updated);}
+  function clearHold(){if(holdTimer.current){clearTimeout(holdTimer.current);holdTimer.current=null;}}
+  function down(e:React.PointerEvent){
+    clearHold();
+    if(loading||turn||(e.target as HTMLElement).closest('button,a')||e.button!==0)return;
+    const target=e.currentTarget as HTMLElement,id=photoAt(e);
+    const p={x:e.clientX,y:e.clientY,time:performance.now(),lastX:e.clientX,dragged:false,loading:false,up:false,modeChange:false,held:false,woke:false};
+    pointer.current=p;
+    if(id&&!immersive){
+      holdTimer.current=setTimeout(()=>{
+        if(!pointer.current||pointer.current.dragged||pointer.current.up)return;
+        pointer.current.held=true;
+        inspect(id);
+      },500);
+    }
   }
-  function up(e:React.PointerEvent){clearHold();const p=pointer.current;if(!p)return;p.up=true;pointer.current=null;if(!p.dragged){if(!p.held&&current.region==='cover')void go(index+1);else if(!p.held&&mobile&&!guideActive&&!p.woke){clearIdle();setImmersive(true);}return;}const t=motionRef.current;if(!t){const dx=e.clientX-p.x,speed=Math.abs(dx)/Math.max(1,performance.now()-p.time);if(p.modeChange||p.loading){if(Math.abs(dx)>Math.min(120,e.currentTarget.clientWidth*.22)||speed>.55)void go(index+(dx<0?1:-1));}else if(flat||reduced)void go(index+(dx<0?1:-1),true);return;}if(!t.dragging)return;
+  async function move(e:React.PointerEvent){
+    const p=pointer.current;if(!p||p.up)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;p.lastX=e.clientX;
+    if(!p.dragged){
+      if(Math.hypot(dx,dy)>8)clearHold();
+      if(Math.abs(dx)<12||Math.abs(dx)<=Math.abs(dy))return;
+      if(current.region==='cover'&&dx<0){p.dragged=true;clearHold();return;}
+      const dir=dx<0?1:-1,next=index+dir;if(next<0||next>=views.length)return;
+      p.dragged=true;clearHold();
+      const targetMode=readingMode(views[next],preference);
+      if(targetMode!==mode){p.modeChange=true;return;}
+      if(flat||reduced)return;
+      p.loading=true;
+      try{const to=await ensure(views[next]);if(!pointer.current||pointer.current.up)return;const t:Turn={id:next,from:canvas!,to,direction:dir,sourceCover:current.region==='cover',targetCover:views[next].region==='cover',fromCursor:cursor,toCursor:boundCursor(spreads,views[next],mode),start:performance.now(),duration:0,fromP:0,toP:0,dragging:true};motionRef.current=t;setTurn(t);}catch{}finally{if(pointer.current)pointer.current.loading=false;}
+      return;
+    }
+    const t=motionRef.current;if(!t||!t.dragging)return;
+    const width=e.currentTarget.clientWidth||w,progress=Math.max(0,Math.min(1,t.direction>0?-dx/width:dx/width));
+    t.progress=progress;setTurn({...t,progress});
+  }
+  function up(e:React.PointerEvent){clearHold();const p=pointer.current;if(!p)return;p.up=true;pointer.current=null;if(!p.dragged){if(!p.held&&current.region==='cover')void go(index+1);else if(immersive)revealControls();else if(!p.held&&mobile&&!guideActive){clearIdle();setImmersive(true);}return;}const t=motionRef.current;if(!t){const dx=e.clientX-p.x,speed=Math.abs(dx)/Math.max(1,performance.now()-p.time);if(p.modeChange||p.loading){if(Math.abs(dx)>Math.min(120,e.currentTarget.clientWidth*.22)||speed>.55)void go(index+(dx<0?1:-1));}else if(flat||reduced)void go(index+(dx<0?1:-1),true);return;}if(!t.dragging)return;
     const progress=t.progress||0,velocity=Math.abs(e.clientX-p.x)/Math.max(1,performance.now()-p.time),complete=progress>.28||velocity>.55;const updated={...t,dragging:false,start:performance.now(),fromP:progress,toP:complete?1:0,duration:complete?Math.max(140,420*(1-progress)):180};motionRef.current=updated;setTurn(updated);
   }
   function cancel(){clearHold();const t=motionRef.current;if(pointer.current)pointer.current.up=true;pointer.current=null;if(t?.dragging){const n={...t,dragging:false,start:performance.now(),fromP:t.progress||0,toP:0,duration:180};motionRef.current=n;setTurn(n);}}
   const {w,h}=displaySize(mode),editable=canEdit(user,album);
   const backdrop=<BookBinding model={binding} cursor={cursor} height={h} cover={current.region==='cover'}/>;
   const fallback=<>{backdrop}{canvas&&<Flat canvas={canvas}/>}</>;
-  return <div className={'reader-screen'+(landscape?' is-landscape':'')+(immersive?' is-immersive':'')} onPointerDownCapture={e=>{if((e.target as Element).closest('button'))revealControls();}} onFocusCapture={revealControls} style={bookStyle(coverDoc)}>
-    <header className="reader-header" inert={immersive} aria-hidden={immersive}><button data-tour="reader-back" className="icon-button" onClick={onBack} aria-label="Albümlere dön"><ArrowLeft/></button><div className="reader-heading"><h1>{album.title}</h1><span>{album.visibility==='shared'?'Ortak':'Özel'}</span></div>{navigation}<div className="header-actions"><button data-tour="reader-mode" className="icon-button view-toggle" onClick={toggleMode} disabled={forcedBook} title={forcedBook?'İki sayfaya yayılan fotoğraf':mode==='single'?'Açık deftere geç':'Tek sayfaya geç'} aria-label={forcedBook?'İki sayfaya yayılan fotoğraf':mode==='single'?'Açık deftere geç':'Tek sayfaya geç'}>{mode==='single'?<BookOpen/>:<RectangleVertical/>}</button>{editable&&<><button data-tour="reader-edit" className="button secondary compact" aria-label="Sayfayı düzenle" onClick={()=>onEdit(current.spread.id,current.region==='left'||current.region==='right'?current.region:'full')}><Pencil size={16}/><span>Düzenle</span></button></>}</div></header>
-    {immersive&&<button className="immersive-wake-btn" onClick={revealControls} aria-label="Menüyü göster">Menü</button>}{error&&<div className="notice error">{error}<button onClick={()=>{setError('');void go(index,true);}}>Yeniden dene</button></div>}
+  return <div className={'reader-screen'+(landscape?' is-landscape':'')+(immersive?' is-immersive':'')+(isFullscreen?' is-fullscreen':'')} onPointerDownCapture={e=>{if((e.target as Element).closest('button'))revealControls();}} onFocusCapture={e=>{if((e.target as HTMLElement)?.matches(':focus-visible')||(e.target as HTMLElement)?.closest('header,footer,nav'))revealControls();}} style={bookStyle(coverDoc)}>
+    <header className="reader-header" inert={immersive} aria-hidden={immersive}>
+      <button data-tour="reader-back" className="icon-button" onClick={onBack} aria-label="Albümlere dön"><ArrowLeft/></button>
+      <div className="reader-heading"><h1>{album.title}</h1><span>{album.visibility==='shared'?'Ortak':'Özel'}</span></div>
+      {navigation}
+      <div className="header-actions">
+        <button data-tour="reader-mode" className="icon-button view-toggle" onClick={toggleMode} disabled={forcedBook} title={forcedBook?'İki sayfaya yayılan fotoğraf':mode==='single'?'Açık deftere geç':'Tek sayfaya geç'} aria-label={forcedBook?'İki sayfaya yayılan fotoğraf':mode==='single'?'Açık deftere geç':'Tek sayfaya geç'}>{mode==='single'?<BookOpen/>:<RectangleVertical/>}</button>
+        <button className="icon-button fullscreen-toggle" onClick={toggleFullscreen} title={isFullscreen?'Tam ekrandan çık':'Tam ekran'} aria-label={isFullscreen?'Tam ekrandan çık':'Tam ekran'}>{isFullscreen?<Minimize2 size={18}/>:<Maximize2 size={18}/>}</button>
+        {editable&&<><button data-tour="reader-edit" className="button secondary compact" aria-label="Sayfayı düzenle" onClick={()=>onEdit(current.spread.id,current.region==='left'||current.region==='right'?current.region:'full')}><Pencil size={16}/><span>Düzenle</span></button></>}
+      </div>
+    </header>
+    {immersive&&(
+      <div className="immersive-wake-group">
+        <button className="icon-button immersive-wake-btn immersive-fs-btn" onClick={toggleFullscreen} title={isFullscreen?'Tam ekrandan çık':'Tam ekran'} aria-label={isFullscreen?'Tam ekrandan çık':'Tam ekran'}>{isFullscreen?<Minimize2 size={17}/>:<Maximize2 size={17}/>}</button>
+        <button className="immersive-wake-btn" onClick={revealControls} aria-label="Menüyü göster">Menü</button>
+      </div>
+    )}
+    {error&&<div className="notice error">{error}<button onClick={()=>{setError('');void go(index,true);}}>Yeniden dene</button></div>}
     <div className="reader-layout" ref={frame}>
     <main className={'reader-stage '+mode} style={{width:w,height:h}}>
       {morph&&<ViewTransition key={morph.id} value={morph} onDone={()=>setMorph(null)}/>}
