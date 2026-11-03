@@ -630,7 +630,9 @@ img[aria-busy=false] { transition:opacity .16s; }
 .avatar-letter { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; font-size: 13px; background:#d9dfd2; color:#3f514b; }
 
 /* Clean unified header architecture */
-.brand-title { font-family: Literata, Georgia, serif; font-style: normal; font-size: 22px; letter-spacing: -.035em; color: #faf7f0; }
+.brand-logo { display:inline-flex; align-items:center; gap:10px; color:#faf0de; vertical-align:middle; flex:none; }
+.brand-logo .brand-title { display:block; width:88px; height:auto; max-width:none; }
+.brand-logo .brand-symbol { display:block; width:34px; height:38px; stroke-width:1.3; }
 .brand-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #a3b899; margin-left: 3px; vertical-align: middle; }
 .site-header { margin: 0 auto; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 64px; min-height: 64px; max-width: 1200px; width: 100%; position: relative; z-index: 20; }
 .section-navigation { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 4px; padding: 3px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; backdrop-filter: blur(8px); }
@@ -1066,7 +1068,6 @@ img[aria-busy=false] { transition:opacity .16s; }
 @media(max-height:600px) and (max-width:760px){.login-main{padding:12px 0;gap:4px;}.login-art{width:110px;}.login-form-area{padding:10px 0;}.login-form-area h1{margin-bottom:18px;}}
 
 /* Imported design ideas, with the existing gestures and permissions retained. */
-.brand-symbol { display:none; }
 .brand-home { display:flex; align-items:center; min-height:44px; }
 .reader-header,.reader-footer { transition:opacity .22s,transform .22s var(--ease); }
 .reader-screen.is-immersive .reader-header { opacity:0; transform:translateY(-100%); pointer-events:none; }
@@ -1123,6 +1124,10 @@ img[aria-busy=false] { transition:opacity .16s; }
   .site-header .account-button > span:not(.avatar-letter) { display:none; }
   .site-header .account-button { gap:2px; padding-inline:2px; }
   .site-header .wordmark { font-size:20px; }
+  .site-header .brand-logo { gap:5px; }
+  .site-header .brand-logo .brand-symbol { width:20px; height:26px; }
+  .site-header .brand-logo .brand-title { width:56px; }
+  .site-header .section-navigation button { padding-inline:6px; }
   .photo-options { margin:auto auto max(12px,env(safe-area-inset-bottom)); border-radius:16px; }
   .editor-title strong { max-width:26vw; }
   .photo-options .modal-heading { margin-bottom:8px; }
@@ -1137,14 +1142,15 @@ img[aria-busy=false] { transition:opacity .16s; }
   .card-back-body { min-height:0; padding:12px 0; }
   .card-back-footer { font-size:12px; flex-wrap:wrap; }
 }
-@media(max-width:359px) { .site-header .brand-title { display:none; }.brand-symbol { display:block; }.site-header .section-navigation button { padding-inline:7px; } }
+@media(max-width:379px) { .site-header { padding-inline:12px; } }
+@media(max-width:359px) { .site-header .brand-logo .brand-title { display:none; }.site-header .section-navigation button { padding-inline:7px; } }
 @media(prefers-reduced-motion:reduce) { .polaroid-flipper,.reader-header,.reader-footer { transition:none; } }
 
 /* Mobile Landscape Optimizations (Phones held horizontally) */
 @media (orientation: landscape) and (max-height: 600px) {
   .site-header {
-    height: 50px !important;
-    min-height: 50px !important;
+    height: 48px !important;
+    min-height: 48px !important;
     padding: 0 16px !important;
   }
   .site-header .wordmark {

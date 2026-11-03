@@ -1,5 +1,6 @@
 'use client';
 import Library from './Library';
+import Brand from './Brand';
 import ScreenLoading from './ScreenLoading';
 import Login from './Login';
 import ChangePassword from './ChangePassword';
@@ -128,7 +129,7 @@ function AlbumContent(){
   function askRemove(target:{asset:Asset}|{album:Album}){setRemovalError('');setRemoval(target);}
   async function remove(){if(!removal||removing)return;setRemoving(true);setRemovalError('');try{if('asset'in removal){await request('assets/'+removal.asset.id,{method:'DELETE',body:JSON.stringify({confirmFilename:removal.asset.filename})});setPhotoId(null);setInspectPhoto(null);if(data)await refreshData();}else{if(!data||data.album.id!==removal.album.id)return;await request('albums/'+removal.album.id,{method:'DELETE',body:JSON.stringify({confirmTitle:removal.album.title,updatedAt:removal.album.updated_at,assetIds:data.assets.map(a=>a.id)})});setDetailsOpen(false);setData(null);setScreen('home');}clearImages();await refreshAlbums();setRefreshKey(n=>n+1);setRemoval(null);}catch(e){setRemovalError((e as Error).message);}finally{setRemoving(false);}}
   const tourOverlay=tour&&<Onboarding state={tour} onNext={nextTour} onClose={()=>setTour(null)}/>;
-  if(boot)return <div className="boot-screen"><span className="wordmark">Album<span className="brand-dot"/></span><LoaderCircle className="spin" size={22}/></div>;
+  if(boot)return <div className="boot-screen"><Brand/><LoaderCircle className="spin" size={22}/></div>;
   if(!user)return <Login username={username} password={password} showPassword={showPassword} onUsername={setUsername} onPassword={setPassword} onShow={()=>setShowPassword(v=>!v)} onSubmit={e=>void login(e)} busy={busy} error={error}/>;
   if(user.passwordChangeRequired)return <ChangePassword onComplete={updated=>{setUser(updated);void refreshAlbums().catch(e=>setMessage(e.message));}} onLogout={()=>void logout()}/>;
   const visible=albums.filter(a=>filter==='all'||filter==='shared'&&a.visibility==='shared'||filter==='personal'&&a.visibility==='personal'&&a.owner_id===user.id);
