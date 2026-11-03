@@ -1,7 +1,7 @@
 import { apiUrl } from './network';
 import { fonts, validDesign, patterns, type FontFamily, type DesignId, type PaperSurface } from './design';
 export const PAGE_W = 1000, PAGE_H = 1250, SPREAD_W = 2000;
-export type User = { id: 'umut' | 'sude'; name: string; admin: boolean; passwordChangeRequired?:boolean };
+export type User = { id: 'umut' | 'sude'; name: string; admin: boolean };
 export type Paper = 'ivory' | 'mist' | 'charcoal' | 'sage' | 'sand' | 'lilac';
 export const papers: Record<Paper, string> = { ivory: '#f7f2e8', mist: '#ebede9', charcoal: '#424944', sage: '#dce4d8', sand: '#e9dcc8', lilac: '#e4dfeb' };
 export type ElementType = 'photo' | 'text' | 'sticker' | 'stroke';

@@ -5,7 +5,6 @@ import {readFileSync} from 'node:fs';
 import {scryptSync} from 'node:crypto';
 import {api} from '../server/api';
 import {hashToken,renewSession,SESSION_SECONDS} from '../server/auth';
-import {encryptPassword,decryptPassword,passwordHash as hashPassword} from '../server/passwords';
 import {blankDoc,newElement} from '../lib/model';
 
 const password='only-a-test-password',salt='test-salt',passwordHash=salt+':'+scryptSync(password,salt,64,{N:32768,r:8,p:3,maxmem:64*1024*1024}).toString('hex');
@@ -74,17 +73,17 @@ test('insertion observes personal album permissions and rolls back a failed tran
 
 
 test('stored Sude credentials still log in and retired password setup cannot alter them or the current session',async()=>{
- const f=fixture(),secret=Buffer.alloc(32,7).toString('base64'),chosen='a-new-test-password';
+ const f=fixture(),chosen='a-new-test-password';
  try{
-  const encrypted=await encryptPassword(chosen,secret),hash=hashPassword(chosen);
+  const encrypted='preserved-opaque-credential',hash=salt+':'+scryptSync(chosen,salt,64,{N:32768,r:8,p:3,maxmem:64*1024*1024}).toString('hex');
   f.sqlite.prepare("INSERT INTO user_credentials(user_id,password_hash,password_encrypted,updated_at) VALUES('sude',?,?,123)").run(hash,encrypted);
   const before=f.sqlite.prepare("SELECT * FROM user_credentials WHERE user_id='sude'").get();
   const login=await f.send('auth/login','POST',{username:'sude',password:chosen});assert.equal(login.status,200);const cookie=login.headers.get('set-cookie')!.split(';')[0];
-  assert.equal((await login.json() as any).user.passwordChangeRequired,false);
+  assert.equal((await login.json() as any).user.passwordChangeRequired,undefined);
   const headers={Cookie:cookie},result=await f.send('auth/password','POST',{password:'another-test-password',confirmPassword:'another-test-password'},headers);
-  assert.equal(result.status,410);assert.equal(result.headers.get('set-cookie'),null);assert.equal(result.headers.get('cache-control'),'no-store');
+  assert.equal(result.status,404);assert.equal(result.headers.get('set-cookie'),null);assert.equal(result.headers.get('cache-control'),'no-store');
   assert.deepEqual(f.sqlite.prepare("SELECT * FROM user_credentials WHERE user_id='sude'").get(),before);
-  const me=await f.send('auth/me','GET',undefined,headers);assert.equal(me.status,200);assert.equal((await me.json() as any).user.passwordChangeRequired,false);assert.ok(me.headers.get('set-cookie')!.startsWith(cookie));
+  const me=await f.send('auth/me','GET',undefined,headers);assert.equal(me.status,200);assert.equal((await me.json() as any).user.passwordChangeRequired,undefined);assert.ok(me.headers.get('set-cookie')!.startsWith(cookie));
   assert.equal((await f.send('auth/login','POST',{username:'sude',password})).status,401);
   assert.equal((await f.send('auth/login','POST',{username:'sude',password:chosen})).status,200);
   assert.equal((await f.send('auth/login','POST',{username:'umut',password})).status,200);
@@ -94,15 +93,11 @@ test('retired password setup retains auth and origin checks and never creates cr
  const f=fixture(),data={password:'new-test-password',confirmPassword:'new-test-password'};
  try{
   assert.equal((await f.send('auth/password','POST',data)).status,401);
-  assert.equal((await f.send('auth/password','POST',data,f.bearer('umut'))).status,403);
+  assert.equal((await f.send('auth/password','POST',data,f.bearer('umut'))).status,404);
   const sude=f.bearer('sude');assert.equal((await f.send('auth/password','POST',data,{...sude,Origin:'https://other.test'})).status,403);
-  assert.equal((await f.send('auth/password','POST',data,sude)).status,410);
+  assert.equal((await f.send('auth/password','POST',data,sude)).status,404);
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM user_credentials').get()!.n,0);
-  const login=await f.send('auth/login','POST',{username:'sude',password});assert.equal(login.status,200);assert.equal((await login.json() as any).user.passwordChangeRequired,false);
-  assert.equal((await(await f.send('auth/me','GET',undefined,sude)).json() as any).user.passwordChangeRequired,false);
+  const login=await f.send('auth/login','POST',{username:'sude',password});assert.equal(login.status,200);assert.equal((await login.json() as any).user.passwordChangeRequired,undefined);
+  assert.equal((await(await f.send('auth/me','GET',undefined,sude)).json() as any).user.passwordChangeRequired,undefined);
  }finally{f.sqlite.close();}
-});
-test('encrypted password recovery needs the separate key and rejects tampered ciphertext',async()=>{
- const secret=Buffer.alloc(32,9).toString('base64'),a=await encryptPassword('test-only',secret),b=await encryptPassword('test-only',secret);assert.notEqual(a,b);assert.equal(await decryptPassword(a,secret),'test-only');
- await assert.rejects(decryptPassword(a,Buffer.alloc(32,10).toString('base64')));const parts=a.split(':');const bytes=Buffer.from(parts[2],'base64');bytes[0]^=1;parts[2]=bytes.toString('base64');await assert.rejects(decryptPassword(parts.join(':'),secret));
 });
