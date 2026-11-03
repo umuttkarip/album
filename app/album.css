@@ -1065,3 +1065,16 @@ img[aria-busy=false] { transition:opacity .16s; }
   .reader-screen.is-landscape .page-counter { grid-column:1/-1; grid-row:1; min-width:0; font-size:11px; gap:5px; white-space:nowrap; }
   .reader-screen.is-landscape .page-filmstrip { bottom:12px!important; }
 }
+
+/* File drops share the picker pipeline; the overlay never steals the drop target. */
+.file-drop-zone { position:relative; }
+.file-drop-overlay { position:absolute;inset:10px;z-index:80;display:grid;place-items:center;padding:24px;border:2px dashed #b3d1c3;border-radius:14px;background:#202432e8;color:#f5f2e9;pointer-events:none; }
+.file-drop-overlay > span { display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;font-size:17px;line-height:1.4; }
+.file-drop-overlay.drop-disabled { border-color:#b0b2bc; }
+.day-drop-content { min-height:180px; }
+.upload-hint,.upload-next { margin:10px 2px 14px;color:var(--panel-muted);font-size:12px;line-height:1.5; }
+.upload-next { padding:0 16px;margin-bottom:0; }
+.upload-job > span:last-of-type { font-variant-numeric:tabular-nums; }
+@media (hover:none) { .upload-hint { display:none; } }
+
+.day-upload-jobs { margin:0 0 20px;max-height:210px;overflow:auto;border-bottom:1px solid var(--panel-line);padding-bottom:12px; }

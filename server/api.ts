@@ -202,6 +202,10 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         const parent=await album(env,a.album_id,u,true);if(parent.visibility!=='shared')fail(400,'Günler için ortak bir fotoğraf seç.');
         await env.DB.prepare('UPDATE assets SET captured_on=? WHERE id=? AND deleted_at IS NULL').bind(b.day,a.id).run();return json({ok:true});
       }
+      if(path[2]==='upload-status'&&path.length===3&&method==='GET'){
+        await album(env,a.album_id,u,true);if(a.deleted_at)fail(404,'Fotoğraf bulunamadı.');
+        return json({uploaded:a.uploaded,ready:!!a.ready});
+      }
       const variant=path[2];if(!['original','display','thumb','screen','complete'].includes(variant)) fail(404,'Dosya bulunamadı.');
       if (method === 'PUT' && variant !== 'complete') {
         if(a.ready&&variant!=='screen') fail(409,'Bu fotoğraf zaten kaydedildi.');

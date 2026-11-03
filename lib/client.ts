@@ -1,5 +1,6 @@
 import type { Asset } from './model';
 import { apiUrl, authHeaders, setSession } from './network';
+import {imageMime} from './upload-files';
 export class RequestError extends Error { constructor(message: string, public status: number) { super(message); } }
 export async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
   const url=apiUrl(path);
@@ -10,36 +11,44 @@ export const post = <T = any>(path: string, body: unknown = {}) => request<T>(pa
 let processing: Promise<unknown> = Promise.resolve();
 export async function preparePhoto(file: File) {
   const work = processing.then(async () => {
-    if (file.size > 30*1024*1024) throw new Error('En fazla 30 MB yüklenebilir.');
-    if (!['image/jpeg','image/png','image/webp'].includes(file.type)) throw new Error('JPEG, PNG veya WebP seç.');
-    const bitmap = await createImageBitmap(file,{imageOrientation:'from-image'});
+    const mime=await imageMime(file);
+    let bitmap:ImageBitmap;
+    try{bitmap=await createImageBitmap(file,{imageOrientation:'from-image'});}catch{throw new Error('Fotoğraf açılamadı. Başka bir dosya seç.');}
     try {
       const make = async (size: number) => {
         const ratio=Math.min(1,size/Math.max(bitmap.width,bitmap.height)), c=document.createElement('canvas');c.width=Math.max(1,Math.round(bitmap.width*ratio));c.height=Math.max(1,Math.round(bitmap.height*ratio));c.getContext('2d')!.drawImage(bitmap,0,0,c.width,c.height);
-        const blob=await new Promise<Blob>((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('Fotoğraf işlenemedi.')),'image/webp',.9));c.width=c.height=1;return blob;
+        try{const blob=await new Promise<Blob>((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('Fotoğraf işlenemedi.')),'image/webp',.9));if(blob.type!=='image/webp')throw new Error('Bu tarayıcı fotoğrafı hazırlayamadı. Güncel Chrome ile yeniden dene.');return blob;}finally{c.width=c.height=1;}
       };
       const display=await make(2560);
-      return {width:bitmap.width,height:bitmap.height,display,screen:Math.max(bitmap.width,bitmap.height)<=1280?display:await make(1280),thumb:await make(360)};
+      return {width:bitmap.width,height:bitmap.height,mime,display,screen:Math.max(bitmap.width,bitmap.height)<=1280?display:await make(1280),thumb:await make(360)};
     } finally { bitmap.close(); }
   });
   processing=work.catch(()=>{});return work;
 }
-function uploadBlob(id: string, variant: string, blob: Blob, onProgress: (n:number)=>void) {
+function uploadBlob(id: string, variant: string, blob: Blob, onProgress: (n:number)=>void, mime=blob.type) {
   return new Promise<void>((resolve,reject)=>{
-    const xhr=new XMLHttpRequest();xhr.open('PUT',apiUrl(`assets/${id}/${variant}`));xhr.setRequestHeader('Content-Type',blob.type);for(const [key,value] of Object.entries(authHeaders()))xhr.setRequestHeader(key,value);xhr.timeout=180000;
+    const xhr=new XMLHttpRequest();xhr.open('PUT',apiUrl(`assets/${id}/${variant}`));xhr.setRequestHeader('Content-Type',mime);for(const [key,value] of Object.entries(authHeaders()))xhr.setRequestHeader(key,value);xhr.timeout=180000;
     xhr.upload.onprogress=e=>onProgress(e.loaded);xhr.onerror=()=>reject(new Error('Bağlantı kesildi. Yeniden deneyebilirsin.'));xhr.ontimeout=()=>reject(new Error('Yükleme zaman aşımına uğradı.'));
     xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300) resolve();else {let message='Fotoğraf yüklenemedi.';try{message=JSON.parse(xhr.responseText).error||message;}catch{}reject(new Error(message));}};xhr.send(blob);
   });
 }
-export type UploadJob = { file: File; id?: string; progress: number; state: 'waiting'|'working'|'done'|'error'; error?: string; variants?: Awaited<ReturnType<typeof preparePhoto>>; uploaded?: string[]; capturedOn?:string };
+export type UploadJob = { file: File; id?: string; progress: number; state: 'waiting'|'working'|'done'|'error'; phase?:'preparing'|'uploading'|'finishing'; kind?:'photo'|'sticker'; error?: string; variants?: Awaited<ReturnType<typeof preparePhoto>>; uploaded?: string[]; capturedOn?:string };
+export const uploadLabel=(job:UploadJob)=>job.state==='done'?'Yüklendi':job.state==='error'?'Yüklenemedi':job.state==='waiting'?'Sırada':job.phase==='preparing'?'Hazırlanıyor':job.phase==='finishing'?'Tamamlanıyor':`${Math.min(99,Math.round(job.progress*100))}%`;
 export async function uploadJob(albumId: string, job: UploadJob, kind: 'photo'|'sticker', update: ()=>void) {
   try {
-    job.state='working';job.error=undefined;update();
+    kind=job.kind||kind;job.kind=kind;job.state='working';job.phase='preparing';job.error=undefined;update();
+    if(job.id){
+      const status=await request<{uploaded:number;ready:boolean}>(`assets/${job.id}/upload-status`);
+      job.uploaded=([['original',1],['display',2],['thumb',4],['screen',8]] as const).filter(([,mask])=>status.uploaded&mask).map(([name])=>name);
+      if(status.ready){job.state='done';job.progress=1;job.variants=undefined;update();return;}
+    }
     const parts=job.variants || await preparePhoto(job.file);job.variants=parts;
-    if(!job.id) job.id=(await post(`albums/${albumId}/assets`,{kind,filename:job.file.name,mime:job.file.type,width:parts.width,height:parts.height,...(job.capturedOn?{capturedOn:job.capturedOn}:{})})).id;
+    if(kind==='sticker'&&parts.mime==='image/jpeg')throw new Error('Çıkartma için PNG veya WebP seç.');
+    if(!job.id) job.id=(await post(`albums/${albumId}/assets`,{kind,filename:job.file.name,mime:parts.mime,width:parts.width,height:parts.height,...(job.capturedOn?{capturedOn:job.capturedOn}:{})})).id;
+    job.phase='uploading';update();
     const blobs: [string,Blob][]=[['original',job.file],['display',parts.display],['thumb',parts.thumb],...(parts.screen?[['screen',parts.screen] as [string,Blob]]:[])], total=blobs.reduce((s,[,b])=>s+b.size,0);let sent=0;
-    for(const [variant,blob] of blobs) {if(!job.uploaded?.includes(variant)){await uploadBlob(job.id!,variant,blob,n=>{job.progress=(sent+n)/total;update();});job.uploaded=[...(job.uploaded||[]),variant];}sent+=blob.size;}
-    await post(`assets/${job.id}/complete`);job.state='done';job.progress=1;job.variants=undefined;update();
+    for(const [variant,blob] of blobs) {if(!job.uploaded?.includes(variant)){await uploadBlob(job.id!,variant,blob,n=>{job.progress=(sent+n)/total;update();},variant==='original'?parts.mime:blob.type);job.uploaded=[...(job.uploaded||[]),variant];}sent+=blob.size;}
+    job.phase='finishing';update();await post(`assets/${job.id}/complete`);job.state='done';job.progress=1;job.variants=undefined;update();
   }catch(e){job.state='error';job.error=e instanceof Error?e.message:'Yükleme tamamlanamadı.';update();}
 }
 export async function uploadJobs(albumId: string,jobs: UploadJob[],kind: 'photo'|'sticker', update:()=>void) {

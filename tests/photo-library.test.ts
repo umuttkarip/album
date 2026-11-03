@@ -28,3 +28,15 @@ test('a new screen copy is additive and immutable; legacy and extended upload ma
  assert.equal((await f.upload('assets/one/screen',bytes,headers)).status,200);assert.equal((await f.upload('assets/one/screen',bytes,headers)).status,409);assert.deepEqual(f.objects.get('one/original'),source);assert.equal(f.db.prepare("SELECT uploaded FROM assets WHERE id='one'").get()!.uploaded,15);
  assert.equal((await f.send('assets/one/complete','umut',{})).status,200);f.photo('legacy','a');assert.equal((await f.send('assets/legacy/complete','umut',{})).status,200);f.photo('incomplete','a');f.db.prepare("UPDATE assets SET uploaded=8,ready=0 WHERE id='incomplete'").run();assert.equal((await f.send('assets/incomplete/complete','umut',{})).status,409);
  }finally{f.db.close();}});
+
+
+test('upload retry status is private, reports persisted copies and grants no admin edit access',async()=>{
+ const f=fixture();try{
+  f.album('shared');f.photo('pending','shared');f.db.prepare("UPDATE assets SET uploaded=11,ready=0 WHERE id='pending'").run();
+  for(const who of ['umut','sude'] as const){const r=await f.send('assets/pending/upload-status',who);assert.equal(r.status,200);assert.deepEqual(await r.json(),{uploaded:11,ready:false});assert.equal(r.headers.get('cache-control'),'no-store');}
+  assert.equal((await f.send('assets/pending/upload-status',null)).status,401);
+  f.album('private','umut','personal');f.photo('private-photo','private');assert.equal((await f.send('assets/private-photo/upload-status','sude')).status,404);
+  f.album('sude-private','sude','personal');f.photo('hers','sude-private');assert.equal((await f.send('assets/hers/upload-status','umut')).status,403);
+  f.db.prepare("UPDATE assets SET deleted_at=1 WHERE id='pending'").run();assert.equal((await f.send('assets/pending/upload-status','umut')).status,404);assert.equal(f.removed.length,0);
+ }finally{f.db.close();}
+});
