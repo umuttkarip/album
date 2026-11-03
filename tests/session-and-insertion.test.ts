@@ -37,9 +37,14 @@ test('an expired cookie cannot authenticate or renew; a legacy unprefixed HTTPS 
 test('cookie writes retain origin checks; arbitrary origins cannot log in or claim the tour',async()=>{
   const f=fixture();try{assert.equal((await f.send('auth/login','POST',{username:'umut',password},{Origin:'https://untrusted.test'})).status,403);assert.equal((await f.send('auth/onboarding/claim','POST',{})).status,401);assert.equal((await f.send('auth/onboarding/claim','POST',{}, {...f.bearer(),Origin:'https://untrusted.test'})).status,403);assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM user_preferences').get()!.n,0);}finally{f.sqlite.close();}
 });
-test('Umut claims the invitation once; Sude receives it on every refresh without resetting seen records',async()=>{
+test('Umut claims the invitation once; Sude never receives an automatic invitation',async()=>{
   const f=fixture();try{const headers=f.bearer();const responses=await Promise.all([f.send('auth/onboarding/claim','POST',{},headers),f.send('auth/onboarding/claim','POST',{},headers)]);assert.deepEqual((await Promise.all(responses.map(r=>r.json()))).map((v:any)=>v.show).sort(),[false,true]);
-    assert.equal((await(await f.send('auth/onboarding/claim','POST',{},headers)).json() as any).show,false);assert.equal((await(await f.send('auth/onboarding/claim','POST',{},f.bearer('sude'))).json() as any).show,true);assert.equal((await(await f.send('auth/onboarding/claim','POST',{},f.bearer('sude'))).json() as any).show,true);assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM user_preferences').get()!.n,1);
+    assert.equal((await(await f.send('auth/onboarding/claim','POST',{},headers)).json() as any).show,false);
+    for(let attempt=0;attempt<2;attempt++)assert.deepEqual(await(await f.send('auth/onboarding/claim','POST',{},f.bearer('sude'))).json(),{show:false,repeatOnRefresh:false});
+    assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM user_preferences').get()!.n,1);
+    f.sqlite.prepare("INSERT INTO user_preferences(user_id,onboarding_seen_at) VALUES('sude',123)").run();
+    assert.deepEqual(await(await f.send('auth/onboarding/claim','POST',{},f.bearer('sude'))).json(),{show:false,repeatOnRefresh:false});
+    assert.equal(f.sqlite.prepare("SELECT onboarding_seen_at FROM user_preferences WHERE user_id='sude'").get()!.onboarding_seen_at,123);
   }finally{f.sqlite.close();}
 });
 

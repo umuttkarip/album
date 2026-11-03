@@ -75,8 +75,8 @@ export async function api(req: Request, env: AlbumEnv): Promise<Response> {
         return json({user:{...u,passwordChangeRequired:false}});
       }
       if (path[1] === 'onboarding' && path[2] === 'claim' && method === 'POST') {
-        // Temporary review mode requested by the account owner; existing seen records stay intact.
-        if(u.id==='sude')return json({show:true,repeatOnRefresh:true});
+        // Sude starts the tour from the profile menu; older clients must not auto-open it either.
+        if(u.id==='sude')return json({show:false,repeatOnRefresh:false});
         const row=await env.DB.prepare('INSERT INTO user_preferences(user_id,onboarding_seen_at) VALUES(?,?) ON CONFLICT(user_id) DO NOTHING RETURNING user_id').bind(u.id,Date.now()).first();
         return json({show:!!row});
       }

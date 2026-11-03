@@ -110,6 +110,7 @@ function AlbumContent(){
   useEffect(()=>{
     if(!user){tourAccount.current='';setTour(null);return;}
     if(user.passwordChangeRequired){setTour(null);return;}
+    if(user.id==='sude'){tourAccount.current=user.id;return;}
     if(tourAccount.current===user.id)return;
     const id=user.id;tourAccount.current=id;
     void post('auth/onboarding/claim').then(r=>{if(r.show&&tourAccount.current===id)setTour(startTour(null,true));}).catch(()=>{});
